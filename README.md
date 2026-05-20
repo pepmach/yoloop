@@ -29,12 +29,15 @@ The generated harness files are:
 - `PROGRESS.html`: human-readable worker progress.
 - `FAILURES.html`: human-readable failure memory.
 - `DECISIONS.html`: human-readable decision log.
+- `raw/`: user-supplied product notes, repo context, references, and domain knowledge for the orchestrator, worker, critic, and grand jury.
 - `.yoloop/events.jsonl`: append-only machine event log.
 - `.yoloop/critic-verdicts/`: structured critic verdict output.
 
 ## Design Bias
 
 The harness keeps human-readable logs for review, but uses JSON/JSONL for enforcement. Agents can write prose for humans; the harness enforces immutable goals, budgets, task ownership, and policy decisions from structured files.
+
+`raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
 
 Task completion is gated by critic verdicts. `yoloop task set-status --status completed` fails unless the latest verdict for that task is `approved`.
 

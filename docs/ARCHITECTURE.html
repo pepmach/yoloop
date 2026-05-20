@@ -32,6 +32,10 @@
       <li><code>FAILURES.html</code></li>
       <li><code>DECISIONS.html</code></li>
     </ul>
+    <h3>User Context</h3>
+    <ul>
+      <li><code>raw/</code>: user-owned context dump for product notes, repo knowledge, references, and domain material. Agents should read this before decomposing, implementing, or judging work.</li>
+    </ul>
     <h3>Machine-enforced Files</h3>
     <ul>
       <li><code>LOOP_POLICY.json</code></li>
@@ -72,6 +76,7 @@
   <section id="rust-core">
     <h2>Why Rust Core</h2>
     <p>The harness needs to supervise processes, parse JSON, enforce file locks, create worktrees, stream logs, and run reliably for hours. A Rust binary is a good fit for that control plane. Plugin wrappers should stay thin.</p>
+    <p>The Rust code should stay modular: <code>main.rs</code> is only the CLI dispatcher, with lifecycle, tasks, verdicts, adapters, hooks, templates, and filesystem helpers split into focused modules.</p>
   </section>
 </body>
 </html>
