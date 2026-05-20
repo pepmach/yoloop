@@ -1,0 +1,157 @@
+import { readFileSync } from "fs";
+import { init, doctor, status, setActive, acceptGoal } from "./app";
+import { runAdapter } from "./adapters";
+import { fail } from "./errors";
+import { printHookDecision, pretooluse } from "./hooks";
+import { goalIntegrity } from "./io";
+import { AgentRoleSchema } from "./schemas";
+import { claimNext, setTaskStatus } from "./tasks";
+import { parseVerdictDecision, writeCriticVerdict } from "./verdicts";
+
+export function run(args: string[], root: string): void {
+  const [command, subcommand, ...rest] = args;
+
+  switch (command) {
+    case "init": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      init(root, options.one("goal"), options.flag("force"));
+      return;
+    }
+    case "status":
+      status(root);
+      return;
+    case "doctor":
+      doctor(root);
+      return;
+    case "pause": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      setActive(root, false, options.one("actor") ?? "human");
+      return;
+    }
+    case "resume": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      goalIntegrity(root);
+      setActive(root, true, options.one("actor") ?? "human");
+      return;
+    }
+    case "accept-goal": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      acceptGoal(root, options.one("actor") ?? "human");
+      return;
+    }
+    case "claim-next": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      claimNext(root, options.one("worker") ?? "worker-local");
+      return;
+    }
+    case "run": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      const role = AgentRoleSchema.parse(options.one("role") ?? "worker");
+      runAdapter(root, options.one("adapter") ?? "claude-code", role, options.flag("execute"));
+      return;
+    }
+    case "task":
+      if (subcommand !== "set-status") {
+        fail("expected task set-status");
+      }
+      runTaskSetStatus(root, rest);
+      return;
+    case "critic":
+      if (subcommand !== "write-verdict") {
+        fail("expected critic write-verdict");
+      }
+      runCriticWriteVerdict(root, rest);
+      return;
+    case "hook":
+      if (subcommand !== "pretooluse") {
+        fail("expected hook pretooluse");
+      }
+      printHookDecision(pretooluse(root, readStdin()));
+      return;
+    default:
+      fail(`unknown command ${command ?? ""}`.trim());
+  }
+}
+
+function runTaskSetStatus(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  const id = options.required("id");
+  const nextStatus = options.required("status");
+  setTaskStatus(root, id, nextStatus, options.one("actor") ?? "yoloop", options.one("message") ?? "");
+}
+
+function runCriticWriteVerdict(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  writeCriticVerdict(
+    root,
+    options.required("task-id"),
+    parseVerdictDecision(options.required("verdict")),
+    options.required("summary"),
+    options.many("check"),
+    options.many("gap"),
+    options.one("actor") ?? "critic",
+  );
+}
+
+function readStdin(): string {
+  try {
+    return readFileSync(0, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+type ParsedOptions = {
+  one(name: string): string | undefined;
+  many(name: string): string[];
+  required(name: string): string;
+  flag(name: string): boolean;
+};
+
+function parseOptions(args: string[]): ParsedOptions {
+  const values = new Map<string, string[]>();
+  const flags = new Set<string>();
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith("--")) {
+      fail(`unexpected argument ${arg}`);
+    }
+    const withoutPrefix = arg.slice(2);
+    const equals = withoutPrefix.indexOf("=");
+    if (equals >= 0) {
+      addValue(values, withoutPrefix.slice(0, equals), withoutPrefix.slice(equals + 1));
+      continue;
+    }
+    const next = args[index + 1];
+    if (next && !next.startsWith("--")) {
+      addValue(values, withoutPrefix, next);
+      index += 1;
+    } else {
+      flags.add(withoutPrefix);
+    }
+  }
+  return {
+    one(name: string): string | undefined {
+      return values.get(name)?.[0];
+    },
+    many(name: string): string[] {
+      return values.get(name) ?? [];
+    },
+    required(name: string): string {
+      const value = values.get(name)?.[0];
+      if (!value) {
+        fail(`missing --${name}`);
+      }
+      return value;
+    },
+    flag(name: string): boolean {
+      return flags.has(name);
+    },
+  };
+}
+
+function addValue(values: Map<string, string[]>, name: string, value: string): void {
+  const existing = values.get(name) ?? [];
+  existing.push(value);
+  values.set(name, existing);
+}

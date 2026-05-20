@@ -2,7 +2,18 @@
 
 Yoloop is a local-first harness for long-running coding agents. It is designed for the "hands-off overnight feature" workflow: a human defines an immutable goal, the harness decomposes work into tasks, workers implement one task at a time, critics verify the work, and a final jury checks the whole run before completion.
 
-This repo is currently an MVP control plane. It does not yet launch agent CLIs by itself. It creates durable state, enforces policy through hooks, and gives agent sessions a shared artifact protocol.
+This repo is currently a TypeScript-first MVP control plane. It creates durable state, validates machine artifacts with Zod, enforces policy through hooks, and gives agent sessions a shared artifact protocol.
+
+## Development
+
+```powershell
+npm install
+npm run build
+npm test
+node dist/cli.js doctor
+```
+
+The npm package exposes a `yoloop` binary from `dist/cli.js`.
 
 ## Quick Start
 
@@ -12,7 +23,7 @@ yoloop doctor
 yoloop status
 yoloop claim-next --worker worker-001
 yoloop task set-status --id T-001 --status critic_review --actor worker-001
-yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "cargo check=passed:clean"
+yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
 yoloop task set-status --id T-001 --status completed --actor critic
 yoloop run --adapter claude-code --role worker
 ```
@@ -39,10 +50,12 @@ The harness keeps human-readable logs for review, but uses JSON/JSONL for enforc
 
 `raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
 
+The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.ts` are the source of truth for JSON artifacts; generated JSON Schema files can be added later if external tooling needs them.
+
 Task completion is gated by critic verdicts. `yoloop task set-status --status completed` fails unless the latest verdict for that task is `approved`.
 
 ```powershell
-yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "cargo check=passed:clean"
+yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
 yoloop task set-status --id T-001 --status completed --actor critic
 ```
 

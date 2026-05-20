@@ -1,0 +1,33 @@
+{
+  "name": "yoloop",
+  "version": "0.1.0",
+  "description": "A local-first agent-loop harness for durable orchestrator-worker-critic coding.",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "yoloop": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "!dist/tests.js",
+    "docs",
+    "plugins",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node dist/tests.js",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

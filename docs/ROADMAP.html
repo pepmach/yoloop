@@ -37,7 +37,7 @@
     <h2>v0.3: Critic Verdict Enforcement</h2>
     <ul>
       <li>Add <code>yoloop critic write-verdict</code>.</li>
-      <li>Validate verdicts against <code>schemas/critic-verdict.schema.json</code>.</li>
+      <li>Validate verdicts against the Zod schemas in <code>src/schemas.ts</code>.</li>
       <li>Only allow <code>completed</code> transitions when the latest verdict is <code>approved</code>.</li>
       <li>Require deterministic check evidence for approval.</li>
     </ul>
