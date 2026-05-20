@@ -54,17 +54,21 @@ export function writeCriticVerdict(
 }
 
 export function ensureLatestVerdictApproved(root: string, taskId: string): void {
-  const path = latestVerdictPath(root, taskId);
-  if (!existsSync(path)) {
-    fail(`task ${taskId} cannot complete without an approved critic verdict: read ${path}`);
-  }
-  const verdict = readJson(path, CriticVerdictSchema, path);
+  const verdict = readLatestVerdict(root, taskId);
   if (verdict.taskId !== taskId) {
     fail(`latest critic verdict task mismatch: expected ${taskId}, got ${verdict.taskId}`);
   }
   if (verdict.verdict !== "approved") {
     fail(`latest critic verdict for task ${taskId} is ${verdict.verdict}, not approved`);
   }
+}
+
+export function readLatestVerdict(root: string, taskId: string): CriticVerdict {
+  const path = latestVerdictPath(root, taskId);
+  if (!existsSync(path)) {
+    fail(`task ${taskId} cannot complete without an approved critic verdict: read ${path}`);
+  }
+  return readJson(path, CriticVerdictSchema, path);
 }
 
 export function parseVerdictDecision(raw: string): VerdictDecision {
@@ -121,5 +125,5 @@ function safeFileId(value: string): string {
 }
 
 function compactTimestamp(iso: string): string {
-  return iso.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return iso.replace(/[-:]/g, "").replace(".", "");
 }

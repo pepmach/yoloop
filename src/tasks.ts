@@ -83,8 +83,8 @@ export function ensureTaskExists(root: string, id: string): void {
   }
 }
 
-export function nextClaimableTask(ledger: TaskLedger): Task | undefined {
-  const index = nextClaimableTaskIndex(ledger, Number.MAX_SAFE_INTEGER);
+export function nextClaimableTask(ledger: TaskLedger, maxRetriesPerTask = Number.MAX_SAFE_INTEGER): Task | undefined {
+  const index = nextClaimableTaskIndex(ledger, maxRetriesPerTask);
   return index === undefined ? undefined : ledger.tasks[index];
 }
 

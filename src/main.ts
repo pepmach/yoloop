@@ -5,6 +5,7 @@ import { fail } from "./errors";
 import { printHookDecision, pretooluse } from "./hooks";
 import { goalIntegrity } from "./io";
 import { orchestrate } from "./orchestrator";
+import { runUntilDone } from "./runner";
 import { AgentRoleSchema } from "./schemas";
 import { claimNext, setTaskStatus } from "./tasks";
 import { parseVerdictDecision, writeCriticVerdict } from "./verdicts";
@@ -60,8 +61,13 @@ export function run(args: string[], root: string): void {
     }
     case "run": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      const adapter = options.one("adapter") ?? "claude-code";
+      if (options.flag("until-done")) {
+        runUntilDone(root, { adapter, execute: options.flag("execute") });
+        return;
+      }
       const role = AgentRoleSchema.parse(options.one("role") ?? "worker");
-      runAdapter(root, options.one("adapter") ?? "claude-code", role, options.flag("execute"));
+      runAdapter(root, adapter, role, options.flag("execute"));
       return;
     }
     case "task":

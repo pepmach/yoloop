@@ -20,21 +20,14 @@ import { AgentAdapter, AgentRole } from "./schemas";
 export function runAdapter(root: string, adapterId: string, role: AgentRole, execute: boolean): void {
   goalIntegrity(root);
   const policy = readPolicy(root);
-  const catalog = readAdapters(root);
-  const adapter = catalog.adapters.find((candidate) => candidate.id === adapterId);
-  if (!adapter) {
-    fail(`adapter ${adapterId} not found in ADAPTERS.json`);
-  }
-
-  const args = renderAdapterArgs(adapter, role);
-  const renderedCommand = formatCommand(adapter.command, args);
+  const { adapter, args, renderedCommand } = resolveAdapterCommand(root, adapterId, role);
   if (!execute) {
     console.log(`dry run: ${renderedCommand}`);
     return;
   }
 
   ensureDir(join(root, RUNS_DIR));
-  const runId = `${adapter.id}-${role}-${compactTimestamp(nowIso())}`;
+  const runId = `${adapter.id}-${role}-${compactTimestamp(nowIso())}-${Math.random().toString(16).slice(2, 10)}`;
   appendEvent(root, {
     timestamp: nowIso(),
     kind: "adapter.run_started",
@@ -80,6 +73,20 @@ export function runAdapter(root: string, adapterId: string, role: AgentRole, exe
   }
 }
 
+export function resolveAdapterCommand(
+  root: string,
+  adapterId: string,
+  role: AgentRole,
+): { adapter: AgentAdapter; args: string[]; renderedCommand: string } {
+  const catalog = readAdapters(root);
+  const adapter = catalog.adapters.find((candidate) => candidate.id === adapterId);
+  if (!adapter) {
+    fail(`adapter ${adapterId} not found in ADAPTERS.json`);
+  }
+  const args = renderAdapterArgs(adapter, role);
+  return { adapter, args, renderedCommand: formatCommand(adapter.command, args) };
+}
+
 export function renderAdapterArgs(adapter: AgentAdapter, role: AgentRole): string[] {
   const args =
     role === "worker"
@@ -116,5 +123,5 @@ function shellQuote(value: string): string {
 }
 
 function compactTimestamp(iso: string): string {
-  return iso.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return iso.replace(/[-:]/g, "").replace(".", "");
 }

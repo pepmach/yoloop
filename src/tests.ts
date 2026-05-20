@@ -7,6 +7,7 @@ import { renderTemplate } from "./adapters";
 import { pretooluse } from "./hooks";
 import { readTasks } from "./io";
 import { orchestrate } from "./orchestrator";
+import { runUntilDone } from "./runner";
 import { setTaskStatus } from "./tasks";
 import { writeCriticVerdict } from "./verdicts";
 
@@ -118,3 +119,99 @@ test("orchestrator writes goal plan tasks and raw context", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("sequential runner executes worker critic pairs until done", () => {
+  const root = tempRoot("runner");
+  try {
+    init(root, "Loop goal", true);
+    orchestrate(root, {
+      objective: "Run two tasks sequentially",
+      scope: [],
+      success: [],
+      nonGoal: [],
+      gate: [],
+      task: ["First task", "Second task"],
+      force: true,
+    });
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
+    writeFileSync(
+      join(root, "ADAPTERS.json"),
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          adapters: [
+            {
+              id: "mock",
+              label: "Mock Agent",
+              command: process.execPath,
+              workerArgs: [join(root, "mock-agent.cjs"), "worker"],
+              criticArgs: [join(root, "mock-agent.cjs"), "critic"],
+              grandJuryArgs: [join(root, "mock-agent.cjs"), "grand-jury"],
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    runUntilDone(root, { adapter: "mock", execute: false });
+    assert.equal(readTasks(root).tasks[0].status, "pending");
+    runUntilDone(root, { adapter: "mock", execute: true });
+    const tasks = readTasks(root).tasks;
+    assert.equal(tasks[0].status, "completed");
+    assert.equal(tasks[1].status, "completed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function mockAgentScript(): string {
+  return `
+const fs = require("fs");
+const path = require("path");
+const role = process.argv[2];
+const root = process.cwd();
+const tasksPath = path.join(root, "TASKS.json");
+const ledger = JSON.parse(fs.readFileSync(tasksPath, "utf8"));
+const now = new Date().toISOString();
+
+function dependenciesCompleted(task) {
+  return task.dependsOn.every((dependency) =>
+    ledger.tasks.some((candidate) => candidate.id === dependency && candidate.status === "completed")
+  );
+}
+
+if (role === "worker") {
+  const task = ledger.tasks.find((candidate) => candidate.status === "pending" && dependenciesCompleted(candidate));
+  if (!task) process.exit(2);
+  task.status = "critic_review";
+  task.claimedBy = "mock-worker";
+  task.attempts += 1;
+  task.updatedAt = now;
+  fs.writeFileSync(tasksPath, JSON.stringify(ledger, null, 2) + "\\n");
+  process.exit(0);
+}
+
+if (role === "critic") {
+  const task = ledger.tasks.find((candidate) => candidate.status === "critic_review");
+  if (!task) process.exit(3);
+  const dir = path.join(root, ".yoloop", "critic-verdicts");
+  fs.mkdirSync(dir, { recursive: true });
+  const verdict = {
+    schemaVersion: 1,
+    taskId: task.id,
+    verdict: "approved",
+    summary: "mock approved",
+    checks: [{ name: "mock", status: "passed", evidence: "ok" }],
+    gaps: [],
+    createdAt: now
+  };
+  fs.writeFileSync(path.join(dir, task.id + ".latest.json"), JSON.stringify(verdict, null, 2) + "\\n");
+  process.exit(0);
+}
+
+process.exit(0);
+`;
+}

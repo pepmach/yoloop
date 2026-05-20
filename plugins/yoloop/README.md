@@ -12,6 +12,7 @@ Commands:
 - `/yoloop:pause`
 - `/yoloop:accept-goal`
 - `/yoloop:resume`
+- `/yoloop:run-until-done`
 
 Hooks:
 

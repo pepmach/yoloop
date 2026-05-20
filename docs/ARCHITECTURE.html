@@ -65,6 +65,12 @@
     <p>A task cannot transition to <code>completed</code> unless its latest critic verdict is <code>approved</code>. Rejected and human-approval-required verdicts keep the task out of the completed state.</p>
   </section>
 
+  <section id="sequential-runner">
+    <h2>Sequential Runner</h2>
+    <p><code>yoloop run --until-done</code> runs the conservative worker-critic loop. It is dry-run by default. With <code>--execute</code>, it launches one worker adapter for the next claimable task, requires the worker to hand off through <code>critic_review</code>, launches one critic adapter, then completes only after an approved critic verdict.</p>
+    <p>Rejected verdicts requeue the task until retry budget is exhausted. Human-approval-required verdicts block the task and stop the loop.</p>
+  </section>
+
   <section id="policy-enforcement">
     <h2>Policy Enforcement</h2>
     <p>The CLI exposes <code>yoloop hook pretooluse</code> so host runtimes can ask the harness whether a proposed tool call should proceed. The first adapter targets Claude Code because it has a <code>PreToolUse</code> hook surface, but the policy engine is not Claude-specific.</p>
