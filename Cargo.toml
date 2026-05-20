@@ -1,0 +1,19 @@
+[package]
+name = "yoloop"
+version = "0.1.0"
+edition = "2021"
+description = "A local-first agent-loop harness for durable orchestrator-worker-critic coding."
+license = "MIT"
+
+[[bin]]
+name = "yoloop"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"

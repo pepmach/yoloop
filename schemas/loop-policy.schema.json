@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Yoloop Loop Policy",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "active",
+    "maxIterations",
+    "maxWallClockMinutes",
+    "maxRetriesPerTask",
+    "immutablePaths",
+    "protectedPathsWhileActive",
+    "allowedWriteRoots",
+    "denyShellSubstrings",
+    "humanGates"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "active": { "type": "boolean" },
+    "maxIterations": { "type": "integer", "minimum": 1 },
+    "maxWallClockMinutes": { "type": "integer", "minimum": 1 },
+    "maxRetriesPerTask": { "type": "integer", "minimum": 0 },
+    "immutablePaths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "protectedPathsWhileActive": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "allowedWriteRoots": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "denyShellSubstrings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "humanGates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "pathGlobs", "commandSubstrings"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "pathGlobs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "commandSubstrings": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

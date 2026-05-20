@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Yoloop Architecture</title>
+</head>
+<body>
+  <h1>Architecture</h1>
+
+  <section id="roles">
+    <h2>Roles</h2>
+    <p>Yoloop starts with a conservative sequential loop:</p>
+    <ol>
+      <li>Orchestrator turns the human goal into plan and tasks.</li>
+      <li>Worker claims one task and implements it.</li>
+      <li>Critic verifies deterministic checks, code quality, and task fit.</li>
+      <li>Repair worker iterates if critic rejects.</li>
+      <li>Grand jury verifies the whole run before the harness emits <code>&lt;yoloop-done&gt;</code>.</li>
+    </ol>
+    <p>Parallel workers are a later feature. They require worktree isolation, ownership-aware tasks, merge strategy, and conflict-safe critic review.</p>
+  </section>
+
+  <section id="state-model">
+    <h2>State Model</h2>
+    <h3>Human-readable Files</h3>
+    <ul>
+      <li><code>GOAL.html</code></li>
+      <li><code>PLAN.html</code></li>
+      <li><code>WORKER_PROMPT.html</code></li>
+      <li><code>CRITIC_PROMPT.html</code></li>
+      <li><code>PROGRESS.html</code></li>
+      <li><code>FAILURES.html</code></li>
+      <li><code>DECISIONS.html</code></li>
+    </ul>
+    <h3>Machine-enforced Files</h3>
+    <ul>
+      <li><code>LOOP_POLICY.json</code></li>
+      <li><code>TASKS.json</code></li>
+      <li><code>.yoloop/goal.sha256</code></li>
+      <li><code>.yoloop/events.jsonl</code></li>
+      <li><code>.yoloop/critic-verdicts/*.json</code></li>
+    </ul>
+  </section>
+
+  <section id="policy-enforcement">
+    <h2>Policy Enforcement</h2>
+    <p>The CLI exposes <code>yoloop hook pretooluse</code> so host runtimes can ask the harness whether a proposed tool call should proceed. The first adapter targets Claude Code because it has a <code>PreToolUse</code> hook surface, but the policy engine is not Claude-specific.</p>
+    <p>The first policy checks are deliberately simple:</p>
+    <ul>
+      <li>deny edits to <code>GOAL.html</code>;</li>
+      <li>deny edits to <code>.yoloop/goal.sha256</code>;</li>
+      <li>deny edits to <code>LOOP_POLICY.json</code> while the loop is active;</li>
+      <li>deny risky shell command substrings;</li>
+      <li>deny mutating tools if the goal hash changed while active.</li>
+    </ul>
+    <p>Future policy compilation should include task ownership, dependency changes, migrations, secret paths, generated test commands, and human approval state.</p>
+  </section>
+
+  <section id="rust-core">
+    <h2>Why Rust Core</h2>
+    <p>The harness needs to supervise processes, parse JSON, enforce file locks, create worktrees, stream logs, and run reliably for hours. A Rust binary is a good fit for that control plane. Plugin wrappers should stay thin.</p>
+  </section>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "yoloop",
+  "description": "Thin Claude Code wrapper for the Yoloop harness.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Yoloop"
+  }
+}
