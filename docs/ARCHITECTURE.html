@@ -49,6 +49,12 @@
     <p>The default catalog includes <code>claude-code</code> and <code>codex-cli</code>. These are adapter templates, not separate implementations. The Rust core owns task state, policy state, event logging, and artifact paths.</p>
   </section>
 
+  <section id="critic-verdicts">
+    <h2>Critic Verdicts</h2>
+    <p>Critics write structured verdicts with <code>yoloop critic write-verdict</code>. Yoloop writes both a timestamped verdict and a latest verdict pointer under <code>.yoloop/critic-verdicts/</code>.</p>
+    <p>A task cannot transition to <code>completed</code> unless its latest critic verdict is <code>approved</code>. Rejected and human-approval-required verdicts keep the task out of the completed state.</p>
+  </section>
+
   <section id="policy-enforcement">
     <h2>Policy Enforcement</h2>
     <p>The CLI exposes <code>yoloop hook pretooluse</code> so host runtimes can ask the harness whether a proposed tool call should proceed. The first adapter targets Claude Code because it has a <code>PreToolUse</code> hook surface, but the policy engine is not Claude-specific.</p>

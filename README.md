@@ -12,6 +12,8 @@ yoloop doctor
 yoloop status
 yoloop claim-next --worker worker-001
 yoloop task set-status --id T-001 --status critic_review --actor worker-001
+yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "cargo check=passed:clean"
+yoloop task set-status --id T-001 --status completed --actor critic
 yoloop run --adapter claude-code --role worker
 ```
 
@@ -33,6 +35,13 @@ The generated harness files are:
 ## Design Bias
 
 The harness keeps human-readable logs for review, but uses JSON/JSONL for enforcement. Agents can write prose for humans; the harness enforces immutable goals, budgets, task ownership, and policy decisions from structured files.
+
+Task completion is gated by critic verdicts. `yoloop task set-status --status completed` fails unless the latest verdict for that task is `approved`.
+
+```powershell
+yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "cargo check=passed:clean"
+yoloop task set-status --id T-001 --status completed --actor critic
+```
 
 ## Host Adapters
 

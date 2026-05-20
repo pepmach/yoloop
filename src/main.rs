@@ -103,6 +103,12 @@ enum Command {
         command: TaskCommand,
     },
 
+    /// Critic verdict operations.
+    Critic {
+        #[command(subcommand)]
+        command: CriticCommand,
+    },
+
     /// Hook entrypoints used by Claude Code or other agent hosts.
     Hook {
         #[command(subcommand)]
@@ -138,6 +144,32 @@ enum TaskCommand {
 
         #[arg(long, default_value = "")]
         message: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum CriticCommand {
+    /// Write the latest structured critic verdict for a task.
+    WriteVerdict {
+        #[arg(long)]
+        task_id: String,
+
+        #[arg(long, value_enum)]
+        verdict: VerdictDecision,
+
+        #[arg(long)]
+        summary: String,
+
+        /// Check entry as name=status:evidence, e.g. "cargo check=passed:clean".
+        #[arg(long)]
+        check: Vec<String>,
+
+        /// Known gap or residual concern.
+        #[arg(long)]
+        gap: Vec<String>,
+
+        #[arg(long, default_value = "critic")]
+        actor: String,
     },
 }
 
@@ -217,6 +249,42 @@ enum TaskStatus {
     Blocked,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+enum VerdictDecision {
+    Approved,
+    Rejected,
+    HumanApprovalRequired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+enum CheckStatus {
+    Passed,
+    Failed,
+    Skipped,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CriticVerdict {
+    schema_version: u32,
+    task_id: String,
+    verdict: VerdictDecision,
+    summary: String,
+    checks: Vec<VerdictCheck>,
+    gaps: Vec<String>,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VerdictCheck {
+    name: String,
+    status: CheckStatus,
+    evidence: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Event {
@@ -270,6 +338,16 @@ fn run() -> Result<()> {
                 actor,
                 message,
             } => set_task_status(&root, &id, &status, &actor, &message),
+        },
+        Command::Critic { command } => match command {
+            CriticCommand::WriteVerdict {
+                task_id,
+                verdict,
+                summary,
+                check,
+                gap,
+                actor,
+            } => write_critic_verdict(&root, &task_id, verdict, &summary, &check, gap, &actor),
         },
         Command::Hook { command } => match command {
             HookCommand::Pretooluse => hook_pretooluse(&root),
@@ -551,8 +629,73 @@ fn run_adapter(root: &Path, adapter_id: &str, role: AgentRole, execute: bool) ->
     Ok(())
 }
 
+fn write_critic_verdict(
+    root: &Path,
+    task_id: &str,
+    verdict: VerdictDecision,
+    summary: &str,
+    checks: &[String],
+    gaps: Vec<String>,
+    actor: &str,
+) -> Result<()> {
+    ensure_task_exists(root, task_id)?;
+    ensure_dir(root.join(".yoloop/critic-verdicts"))?;
+
+    let parsed_checks = checks
+        .iter()
+        .map(|check| parse_verdict_check_arg(check))
+        .collect::<Result<Vec<_>>>()?;
+    let created_at = Utc::now();
+    let critic_verdict = CriticVerdict {
+        schema_version: 1,
+        task_id: task_id.to_string(),
+        verdict,
+        summary: summary.to_string(),
+        checks: parsed_checks,
+        gaps,
+        created_at,
+    };
+
+    let safe_task_id = safe_file_id(task_id);
+    let stamped_path = format!(
+        ".yoloop/critic-verdicts/{}-{}.json",
+        safe_task_id,
+        created_at.format("%Y%m%dT%H%M%SZ")
+    );
+    let latest_path = latest_verdict_relative_path(task_id);
+    let serialized = pretty_json(&critic_verdict)?;
+    fs::write(root.join(&stamped_path), &serialized).context("write stamped critic verdict")?;
+    fs::write(root.join(&latest_path), serialized).context("write latest critic verdict")?;
+
+    append_event(
+        root,
+        Event {
+            timestamp: created_at,
+            kind: "critic.verdict_written".to_string(),
+            actor: actor.to_string(),
+            task_id: Some(task_id.to_string()),
+            message: format!("Wrote {verdict:?} critic verdict for {task_id} to {latest_path}."),
+            data: BTreeMap::from([
+                (
+                    "verdict".to_string(),
+                    Value::String(verdict.as_str().to_string()),
+                ),
+                ("latestPath".to_string(), Value::String(latest_path.clone())),
+                ("stampedPath".to_string(), Value::String(stamped_path)),
+            ]),
+        },
+    )?;
+
+    println!("{latest_path}");
+    Ok(())
+}
+
 fn set_task_status(root: &Path, id: &str, status: &str, actor: &str, message: &str) -> Result<()> {
     let parsed_status = parse_task_status(status)?;
+    if parsed_status == TaskStatus::Completed {
+        ensure_latest_verdict_approved(root, id)?;
+    }
+
     let mut ledger = read_tasks(root)?;
     let now = Utc::now();
     let task = ledger
@@ -563,7 +706,10 @@ fn set_task_status(root: &Path, id: &str, status: &str, actor: &str, message: &s
 
     task.status = parsed_status;
     task.updated_at = now;
-    if matches!(parsed_status, TaskStatus::Pending | TaskStatus::Cancelled) {
+    if matches!(
+        parsed_status,
+        TaskStatus::Pending | TaskStatus::Completed | TaskStatus::Cancelled
+    ) {
         task.claimed_by = None;
     }
 
@@ -859,7 +1005,7 @@ fn default_plan() -> String {
     <ul>
       <li>Critic runs deterministic checks first.</li>
       <li>Critic performs gap analysis against <code>GOAL.html</code>, <code>PLAN.html</code>, and the task contract.</li>
-      <li>Critic writes a verdict under <code>.yoloop/critic-verdicts/</code>.</li>
+      <li>Critic writes a verdict with <code>yoloop critic write-verdict</code>.</li>
     </ul>
   </section>
 
@@ -960,7 +1106,7 @@ fn default_critic_prompt() -> String {
       <li>Run deterministic checks first: format, lint, typecheck, tests, build, and integration checks when available.</li>
       <li>Inspect the diff for regression risk, hidden scope expansion, missing tests, and unacknowledged side effects.</li>
       <li>Verify failures and decisions are documented.</li>
-      <li>Write a structured verdict under <code>.yoloop/critic-verdicts/</code>.</li>
+      <li>Write a structured verdict with <code>yoloop critic write-verdict</code>.</li>
     </ol>
   </section>
 
@@ -973,6 +1119,12 @@ fn default_critic_prompt() -> String {
       <li>failures are unresolved or undocumented;</li>
       <li>the implementation expands scope beyond the task contract.</li>
     </ul>
+  </section>
+
+  <section id="verdict-command">
+    <h2>Verdict Command</h2>
+    <pre><code>yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified implementation" --check "cargo check=passed:clean"</code></pre>
+    <p>Use <code>--verdict rejected</code> or <code>--verdict human-approval-required</code> when the task must not be completed.</p>
   </section>
 </body>
 </html>
@@ -1075,6 +1227,20 @@ fn read_adapters(root: &Path) -> Result<AdapterCatalog> {
     serde_json::from_str(&raw).context("parse ADAPTERS.json")
 }
 
+fn read_latest_verdict(root: &Path, task_id: &str) -> Result<CriticVerdict> {
+    let path = latest_verdict_relative_path(task_id);
+    let raw = fs::read_to_string(root.join(&path)).with_context(|| format!("read {path}"))?;
+    let verdict: CriticVerdict =
+        serde_json::from_str(&raw).with_context(|| format!("parse {path}"))?;
+    if verdict.task_id != task_id {
+        bail!(
+            "latest verdict task id mismatch: expected {task_id}, found {}",
+            verdict.task_id
+        );
+    }
+    Ok(verdict)
+}
+
 fn goal_hash(root: &Path) -> Result<String> {
     let bytes = fs::read(root.join(GOAL_PATH)).context("read GOAL.html")?;
     let mut hasher = Sha256::new();
@@ -1128,6 +1294,60 @@ fn parse_task_status(status: &str) -> Result<TaskStatus> {
     }
 }
 
+fn parse_check_status(status: &str) -> Result<CheckStatus> {
+    match status {
+        "passed" => Ok(CheckStatus::Passed),
+        "failed" => Ok(CheckStatus::Failed),
+        "skipped" => Ok(CheckStatus::Skipped),
+        _ => bail!("invalid check status `{status}`; expected passed, failed, or skipped"),
+    }
+}
+
+fn parse_verdict_check_arg(value: &str) -> Result<VerdictCheck> {
+    let (name, rest) = value
+        .split_once('=')
+        .ok_or_else(|| anyhow!("invalid --check `{value}`; expected name=status:evidence"))?;
+    let (status, evidence) = rest
+        .split_once(':')
+        .ok_or_else(|| anyhow!("invalid --check `{value}`; expected name=status:evidence"))?;
+    if name.trim().is_empty() {
+        bail!("invalid --check `{value}`; check name cannot be empty");
+    }
+    if evidence.trim().is_empty() {
+        bail!("invalid --check `{value}`; evidence cannot be empty");
+    }
+    Ok(VerdictCheck {
+        name: name.trim().to_string(),
+        status: parse_check_status(status.trim())?,
+        evidence: evidence.trim().to_string(),
+    })
+}
+
+fn ensure_task_exists(root: &Path, task_id: &str) -> Result<()> {
+    let ledger = read_tasks(root)?;
+    if ledger.tasks.iter().any(|task| task.id == task_id) {
+        Ok(())
+    } else {
+        bail!("task not found: {task_id}")
+    }
+}
+
+fn ensure_latest_verdict_approved(root: &Path, task_id: &str) -> Result<()> {
+    let latest_path = latest_verdict_relative_path(task_id);
+    if !root.join(&latest_path).exists() {
+        bail!("cannot complete task {task_id}: no critic verdict found at {latest_path}")
+    }
+    let verdict = read_latest_verdict(root, task_id)?;
+    if verdict.verdict == VerdictDecision::Approved {
+        Ok(())
+    } else {
+        bail!(
+            "cannot complete task {task_id}: latest critic verdict is {}",
+            verdict.verdict.as_str()
+        )
+    }
+}
+
 impl AgentRole {
     fn as_str(self) -> &'static str {
         match self {
@@ -1136,6 +1356,36 @@ impl AgentRole {
             AgentRole::GrandJury => "grand-jury",
         }
     }
+}
+
+impl VerdictDecision {
+    fn as_str(self) -> &'static str {
+        match self {
+            VerdictDecision::Approved => "approved",
+            VerdictDecision::Rejected => "rejected",
+            VerdictDecision::HumanApprovalRequired => "human_approval_required",
+        }
+    }
+}
+
+fn latest_verdict_relative_path(task_id: &str) -> String {
+    format!(
+        ".yoloop/critic-verdicts/{}.latest.json",
+        safe_file_id(task_id)
+    )
+}
+
+fn safe_file_id(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 fn render_adapter_args(root: &Path, adapter: &AgentAdapter, role: AgentRole) -> Vec<String> {
@@ -1243,4 +1493,69 @@ fn trim_dot(value: &str) -> String {
         .unwrap_or(&value)
         .trim_end_matches('/')
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_root(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "yoloop-test-{}-{}-{}",
+            name,
+            std::process::id(),
+            Utc::now().timestamp_millis()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn parses_verdict_check_arg() {
+        let check = parse_verdict_check_arg("cargo check=passed:clean").unwrap();
+        assert_eq!(check.name, "cargo check");
+        assert_eq!(check.status, CheckStatus::Passed);
+        assert_eq!(check.evidence, "clean");
+    }
+
+    #[test]
+    fn completed_status_requires_approved_verdict() {
+        let root = temp_root("completion-gate");
+        init(&root, Some("Test goal".to_string()), true).unwrap();
+
+        let no_verdict = set_task_status(&root, "T-001", "completed", "test", "").unwrap_err();
+        assert!(format!("{no_verdict:#}").contains("latest"));
+
+        write_critic_verdict(
+            &root,
+            "T-001",
+            VerdictDecision::Rejected,
+            "Not ready",
+            &["cargo check=passed:clean".to_string()],
+            vec!["missing coverage".to_string()],
+            "test-critic",
+        )
+        .unwrap();
+        let rejected = set_task_status(&root, "T-001", "completed", "test", "").unwrap_err();
+        assert!(format!("{rejected:#}").contains("rejected"));
+
+        write_critic_verdict(
+            &root,
+            "T-001",
+            VerdictDecision::Approved,
+            "Ready",
+            &["cargo check=passed:clean".to_string()],
+            Vec::new(),
+            "test-critic",
+        )
+        .unwrap();
+        set_task_status(&root, "T-001", "completed", "test", "").unwrap();
+
+        let ledger = read_tasks(&root).unwrap();
+        let task = ledger.tasks.iter().find(|task| task.id == "T-001").unwrap();
+        assert_eq!(task.status, TaskStatus::Completed);
+        assert_eq!(task.claimed_by, None);
+
+        let _ = fs::remove_dir_all(root);
+    }
 }
