@@ -3,11 +3,12 @@ use std::{
     fs,
     io::{self, Read, Write},
     path::{Path, PathBuf},
+    process::Command as ProcessCommand,
 };
 
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{DateTime, Utc};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -17,6 +18,7 @@ const GOAL_PATH: &str = "GOAL.html";
 const GOAL_HASH_PATH: &str = ".yoloop/goal.sha256";
 const POLICY_PATH: &str = "LOOP_POLICY.json";
 const TASKS_PATH: &str = "TASKS.json";
+const ADAPTERS_PATH: &str = "ADAPTERS.json";
 const EVENTS_PATH: &str = ".yoloop/events.jsonl";
 const PLAN_PATH: &str = "PLAN.html";
 const WORKER_PROMPT_PATH: &str = "WORKER_PROMPT.html";
@@ -80,6 +82,21 @@ enum Command {
         worker: String,
     },
 
+    /// Run one configured host adapter role.
+    Run {
+        /// Adapter id from ADAPTERS.json.
+        #[arg(long, default_value = "claude-code")]
+        adapter: String,
+
+        /// Harness role to launch.
+        #[arg(long, value_enum, default_value_t = AgentRole::Worker)]
+        role: AgentRole,
+
+        /// Execute the adapter command. Without this, Yoloop prints a dry run.
+        #[arg(long)]
+        execute: bool,
+    },
+
     /// Task ledger operations.
     Task {
         #[command(subcommand)]
@@ -91,6 +108,13 @@ enum Command {
         #[command(subcommand)]
         command: HookCommand,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum AgentRole {
+    Worker,
+    Critic,
+    GrandJury,
 }
 
 #[derive(Subcommand)]
@@ -139,6 +163,24 @@ struct HumanGate {
     description: String,
     path_globs: Vec<String>,
     command_substrings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AdapterCatalog {
+    schema_version: u32,
+    adapters: Vec<AgentAdapter>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentAdapter {
+    id: String,
+    label: String,
+    command: String,
+    worker_args: Vec<String>,
+    critic_args: Vec<String>,
+    grand_jury_args: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,6 +258,11 @@ fn run() -> Result<()> {
         }
         Command::AcceptGoal { actor } => accept_goal(&root, &actor),
         Command::ClaimNext { worker } => claim_next(&root, &worker),
+        Command::Run {
+            adapter,
+            role,
+            execute,
+        } => run_adapter(&root, &adapter, role, execute),
         Command::Task { command } => match command {
             TaskCommand::SetStatus {
                 id,
@@ -240,14 +287,35 @@ fn init(root: &Path, goal: Option<String>, force: bool) -> Result<()> {
         goal_html(goal.unwrap_or_else(|| "Describe the objective here.".to_string())),
         force,
     )?;
-    write_new(root.join(POLICY_PATH), pretty_json(&default_policy())?, force)?;
+    write_new(
+        root.join(POLICY_PATH),
+        pretty_json(&default_policy())?,
+        force,
+    )?;
     write_new(root.join(TASKS_PATH), pretty_json(&default_tasks())?, force)?;
+    write_new(
+        root.join(ADAPTERS_PATH),
+        pretty_json(&default_adapters())?,
+        force,
+    )?;
     write_new(root.join(PLAN_PATH), default_plan(), force)?;
-    write_new(root.join(WORKER_PROMPT_PATH), default_worker_prompt(), force)?;
-    write_new(root.join(CRITIC_PROMPT_PATH), default_critic_prompt(), force)?;
+    write_new(
+        root.join(WORKER_PROMPT_PATH),
+        default_worker_prompt(),
+        force,
+    )?;
+    write_new(
+        root.join(CRITIC_PROMPT_PATH),
+        default_critic_prompt(),
+        force,
+    )?;
     write_new(root.join(PROGRESS_PATH), empty_log_html("Progress"), force)?;
     write_new(root.join(FAILURES_PATH), empty_log_html("Failures"), force)?;
-    write_new(root.join(DECISIONS_PATH), empty_log_html("Decisions"), force)?;
+    write_new(
+        root.join(DECISIONS_PATH),
+        empty_log_html("Decisions"),
+        force,
+    )?;
     write_new(root.join(EVENTS_PATH), String::new(), force)?;
 
     let hash = goal_hash(root)?;
@@ -267,6 +335,7 @@ fn init(root: &Path, goal: Option<String>, force: bool) -> Result<()> {
 
     println!("Initialized Yoloop harness in {}", root.display());
     println!("Next: edit GOAL.html, PLAN.html, TASKS.json, then run `yoloop doctor`.");
+    println!("Adapter templates live in ADAPTERS.json; run `yoloop run` to inspect the command before executing.");
     Ok(())
 }
 
@@ -303,6 +372,7 @@ fn doctor(root: &Path) -> Result<()> {
         GOAL_HASH_PATH,
         POLICY_PATH,
         TASKS_PATH,
+        ADAPTERS_PATH,
         PLAN_PATH,
         WORKER_PROMPT_PATH,
         CRITIC_PROMPT_PATH,
@@ -335,6 +405,14 @@ fn doctor(root: &Path) -> Result<()> {
         Err(err) => {
             ok = false;
             println!("bad: task ledger parse failed: {err:#}");
+        }
+    }
+
+    match read_adapters(root) {
+        Ok(_) => println!("ok: adapters parse"),
+        Err(err) => {
+            ok = false;
+            println!("bad: adapters parse failed: {err:#}");
         }
     }
 
@@ -388,6 +466,91 @@ fn claim_next(root: &Path, worker: &str) -> Result<()> {
     Ok(())
 }
 
+fn run_adapter(root: &Path, adapter_id: &str, role: AgentRole, execute: bool) -> Result<()> {
+    goal_integrity(root)?;
+    let catalog = read_adapters(root)?;
+    let adapter = catalog
+        .adapters
+        .iter()
+        .find(|adapter| adapter.id == adapter_id)
+        .ok_or_else(|| anyhow!("adapter not found in ADAPTERS.json: {adapter_id}"))?;
+    let args = render_adapter_args(root, adapter, role);
+    let rendered = format_command(&adapter.command, &args);
+
+    if !execute {
+        println!("{rendered}");
+        println!("dry-run only; add --execute to run this adapter role");
+        return Ok(());
+    }
+
+    ensure_dir(root.join(".yoloop/runs"))?;
+    let run_id = format!(
+        "{}-{}-{}",
+        Utc::now().format("%Y%m%dT%H%M%SZ"),
+        adapter.id,
+        role.as_str()
+    );
+    append_event(
+        root,
+        Event {
+            timestamp: Utc::now(),
+            kind: "adapter.run_started".to_string(),
+            actor: "yoloop".to_string(),
+            task_id: None,
+            message: format!("Started {rendered}"),
+            data: BTreeMap::from([
+                ("adapter".to_string(), Value::String(adapter.id.clone())),
+                ("role".to_string(), Value::String(role.as_str().to_string())),
+                ("runId".to_string(), Value::String(run_id.clone())),
+            ]),
+        },
+    )?;
+
+    let output = ProcessCommand::new(&adapter.command)
+        .args(&args)
+        .current_dir(root)
+        .output()
+        .with_context(|| format!("run adapter command `{}`", adapter.command))?;
+
+    let stdout_path = format!(".yoloop/runs/{run_id}.stdout.txt");
+    let stderr_path = format!(".yoloop/runs/{run_id}.stderr.txt");
+    fs::write(root.join(&stdout_path), &output.stdout).context("write adapter stdout")?;
+    fs::write(root.join(&stderr_path), &output.stderr).context("write adapter stderr")?;
+
+    append_event(
+        root,
+        Event {
+            timestamp: Utc::now(),
+            kind: "adapter.run_finished".to_string(),
+            actor: "yoloop".to_string(),
+            task_id: None,
+            message: format!("Finished {rendered} with status {}", output.status),
+            data: BTreeMap::from([
+                ("adapter".to_string(), Value::String(adapter.id.clone())),
+                ("role".to_string(), Value::String(role.as_str().to_string())),
+                ("runId".to_string(), Value::String(run_id)),
+                ("success".to_string(), Value::Bool(output.status.success())),
+                (
+                    "code".to_string(),
+                    output
+                        .status
+                        .code()
+                        .map(|code| Value::Number(code.into()))
+                        .unwrap_or(Value::Null),
+                ),
+                ("stdout".to_string(), Value::String(stdout_path)),
+                ("stderr".to_string(), Value::String(stderr_path)),
+            ]),
+        },
+    )?;
+
+    if !output.status.success() {
+        bail!("adapter command failed with status {}", output.status);
+    }
+
+    Ok(())
+}
+
 fn set_task_status(root: &Path, id: &str, status: &str, actor: &str, message: &str) -> Result<()> {
     let parsed_status = parse_task_status(status)?;
     let mut ledger = read_tasks(root)?;
@@ -418,10 +581,7 @@ fn set_task_status(root: &Path, id: &str, status: &str, actor: &str, message: &s
             } else {
                 message.to_string()
             },
-            data: BTreeMap::from([(
-                "status".to_string(),
-                Value::String(status.to_string()),
-            )]),
+            data: BTreeMap::from([("status".to_string(), Value::String(status.to_string()))]),
         },
     )?;
 
@@ -502,7 +662,9 @@ fn hook_pretooluse(root: &Path) -> Result<()> {
     if let Some(path) = hook_file_path(&hook) {
         let normalized = normalize_path_for_policy(root, &path);
         if path_matches_any(&normalized, &policy.immutable_paths) {
-            return deny(&format!("Policy denies edits to immutable path `{normalized}`."));
+            return deny(&format!(
+                "Policy denies edits to immutable path `{normalized}`."
+            ));
         }
         if path_matches_any(&normalized, &policy.protected_paths_while_active) {
             return deny(&format!(
@@ -530,7 +692,9 @@ fn hook_pretooluse(root: &Path) -> Result<()> {
             .iter()
             .find(|pattern| lower.contains(&pattern.to_ascii_lowercase()))
         {
-            return deny(&format!("Policy denies shell command containing `{pattern}`."));
+            return deny(&format!(
+                "Policy denies shell command containing `{pattern}`."
+            ));
         }
     }
 
@@ -599,6 +763,48 @@ fn default_policy() -> LoopPolicy {
     }
 }
 
+fn default_adapters() -> AdapterCatalog {
+    AdapterCatalog {
+        schema_version: 1,
+        adapters: vec![
+            AgentAdapter {
+                id: "claude-code".to_string(),
+                label: "Claude Code".to_string(),
+                command: "claude".to_string(),
+                worker_args: vec![
+                    "-p".to_string(),
+                    "Read {{worker_prompt}} first, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.".to_string(),
+                ],
+                critic_args: vec![
+                    "-p".to_string(),
+                    "Read {{critic_prompt}} first, inspect the current diff, run available checks, and write a verdict under .yoloop/critic-verdicts/.".to_string(),
+                ],
+                grand_jury_args: vec![
+                    "-p".to_string(),
+                    "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, and all critic verdicts. Approve only if the entire run is complete and clean.".to_string(),
+                ],
+            },
+            AgentAdapter {
+                id: "codex-cli".to_string(),
+                label: "Codex CLI".to_string(),
+                command: "codex".to_string(),
+                worker_args: vec![
+                    "exec".to_string(),
+                    "Read {{worker_prompt}} first, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.".to_string(),
+                ],
+                critic_args: vec![
+                    "exec".to_string(),
+                    "Read {{critic_prompt}} first, inspect the current diff, run available checks, and write a verdict under .yoloop/critic-verdicts/.".to_string(),
+                ],
+                grand_jury_args: vec![
+                    "exec".to_string(),
+                    "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, and all critic verdicts. Approve only if the entire run is complete and clean.".to_string(),
+                ],
+            },
+        ],
+    }
+}
+
 fn default_tasks() -> TaskLedger {
     let now = Utc::now();
     TaskLedger {
@@ -606,7 +812,8 @@ fn default_tasks() -> TaskLedger {
         tasks: vec![Task {
             id: "T-001".to_string(),
             title: "Replace this seed task with the first implementation slice".to_string(),
-            description: "Describe the smallest useful task the first worker should complete.".to_string(),
+            description: "Describe the smallest useful task the first worker should complete."
+                .to_string(),
             status: TaskStatus::Pending,
             priority: 100,
             attempts: 0,
@@ -863,6 +1070,11 @@ fn read_tasks(root: &Path) -> Result<TaskLedger> {
     serde_json::from_str(&raw).context("parse TASKS.json")
 }
 
+fn read_adapters(root: &Path) -> Result<AdapterCatalog> {
+    let raw = fs::read_to_string(root.join(ADAPTERS_PATH)).context("read ADAPTERS.json")?;
+    serde_json::from_str(&raw).context("parse ADAPTERS.json")
+}
+
 fn goal_hash(root: &Path) -> Result<String> {
     let bytes = fs::read(root.join(GOAL_PATH)).context("read GOAL.html")?;
     let mut hasher = Sha256::new();
@@ -913,6 +1125,69 @@ fn parse_task_status(status: &str) -> Result<TaskStatus> {
         _ => bail!(
             "invalid task status `{status}`; expected pending, in_progress, critic_review, completed, cancelled, or blocked"
         ),
+    }
+}
+
+impl AgentRole {
+    fn as_str(self) -> &'static str {
+        match self {
+            AgentRole::Worker => "worker",
+            AgentRole::Critic => "critic",
+            AgentRole::GrandJury => "grand-jury",
+        }
+    }
+}
+
+fn render_adapter_args(root: &Path, adapter: &AgentAdapter, role: AgentRole) -> Vec<String> {
+    let args = match role {
+        AgentRole::Worker => &adapter.worker_args,
+        AgentRole::Critic => &adapter.critic_args,
+        AgentRole::GrandJury => &adapter.grand_jury_args,
+    };
+
+    args.iter()
+        .map(|arg| render_template(root, arg, role))
+        .collect()
+}
+
+fn render_template(root: &Path, value: &str, role: AgentRole) -> String {
+    let replacements = [
+        ("{{root}}", root.to_string_lossy().to_string()),
+        ("{{role}}", role.as_str().to_string()),
+        ("{{goal}}", GOAL_PATH.to_string()),
+        ("{{policy}}", POLICY_PATH.to_string()),
+        ("{{tasks}}", TASKS_PATH.to_string()),
+        ("{{adapters}}", ADAPTERS_PATH.to_string()),
+        ("{{plan}}", PLAN_PATH.to_string()),
+        ("{{worker_prompt}}", WORKER_PROMPT_PATH.to_string()),
+        ("{{critic_prompt}}", CRITIC_PROMPT_PATH.to_string()),
+        ("{{progress}}", PROGRESS_PATH.to_string()),
+        ("{{failures}}", FAILURES_PATH.to_string()),
+        ("{{decisions}}", DECISIONS_PATH.to_string()),
+    ];
+
+    replacements
+        .iter()
+        .fold(value.to_string(), |rendered, (needle, replacement)| {
+            rendered.replace(needle, replacement)
+        })
+}
+
+fn format_command(command: &str, args: &[String]) -> String {
+    std::iter::once(shell_quote(command))
+        .chain(args.iter().map(|arg| shell_quote(arg)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn shell_quote(value: &str) -> String {
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/' | '\\' | ':'))
+    {
+        value.to_string()
+    } else {
+        format!("\"{}\"", value.replace('"', "\\\""))
     }
 }
 

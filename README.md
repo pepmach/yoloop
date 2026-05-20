@@ -12,12 +12,14 @@ yoloop doctor
 yoloop status
 yoloop claim-next --worker worker-001
 yoloop task set-status --id T-001 --status critic_review --actor worker-001
+yoloop run --adapter claude-code --role worker
 ```
 
 The generated harness files are:
 
 - `GOAL.html`: immutable human-owned goal and success criteria.
 - `LOOP_POLICY.json`: budgets, protected paths, and human approval gates.
+- `ADAPTERS.json`: editable host adapter command templates.
 - `PLAN.html`: master implementation plan.
 - `TASKS.json`: structured task ledger.
 - `WORKER_PROMPT.html`: worker session bootstrap.
@@ -41,6 +43,15 @@ yoloop hook pretooluse
 ```
 
 Future adapters for Codex, OpenCode, Cursor, and other agent runtimes should share the same state machine instead of forking the harness logic.
+
+`yoloop run` is dry-run by default. It renders the configured adapter command and prints it. Add `--execute` only when the command is correct for the local agent CLI:
+
+```powershell
+yoloop run --adapter claude-code --role worker --execute
+yoloop run --adapter codex-cli --role critic --execute
+```
+
+Adapter templates live in `ADAPTERS.json` so Claude Code, Codex, and future hosts can evolve independently of the harness state machine.
 
 ## Goal Update Flow
 
