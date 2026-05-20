@@ -4,6 +4,7 @@ import { runAdapter } from "./adapters";
 import { fail } from "./errors";
 import { printHookDecision, pretooluse } from "./hooks";
 import { goalIntegrity } from "./io";
+import { orchestrate } from "./orchestrator";
 import { AgentRoleSchema } from "./schemas";
 import { claimNext, setTaskStatus } from "./tasks";
 import { parseVerdictDecision, writeCriticVerdict } from "./verdicts";
@@ -42,6 +43,19 @@ export function run(args: string[], root: string): void {
     case "claim-next": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       claimNext(root, options.one("worker") ?? "worker-local");
+      return;
+    }
+    case "orchestrate": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      orchestrate(root, {
+        objective: options.required("objective"),
+        scope: options.many("scope"),
+        success: options.many("success"),
+        nonGoal: options.many("non-goal"),
+        gate: options.many("gate"),
+        task: options.many("task"),
+        force: options.flag("force"),
+      });
       return;
     }
     case "run": {

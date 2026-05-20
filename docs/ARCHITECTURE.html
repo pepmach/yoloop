@@ -20,6 +20,12 @@
     <p>Parallel workers are a later feature. They require worktree isolation, ownership-aware tasks, merge strategy, and conflict-safe critic review.</p>
   </section>
 
+  <section id="orchestrator">
+    <h2>Orchestrator MVP</h2>
+    <p><code>yoloop orchestrate</code> is deterministic and local. It reads <code>raw/</code>, accepts explicit objective, scope, success, non-goal, gate, and task inputs, then writes <code>GOAL.html</code>, <code>PLAN.html</code>, prompts, policy, adapters, task ledger, logs, events, and the accepted goal hash.</p>
+    <p>This first version does not call an LLM or launch workers. It establishes the artifact contract that future interactive orchestrator sessions will use.</p>
+  </section>
+
   <section id="state-model">
     <h2>State Model</h2>
     <h3>Human-readable Files</h3>

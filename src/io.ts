@@ -101,3 +101,9 @@ export function appendEvent(root: string, event: Event): void {
 export function nowIso(): string {
   return new Date().toISOString();
 }
+
+export function acceptCurrentGoalHash(root: string): string {
+  const hash = goalHash(root);
+  atomicWriteFile(join(root, GOAL_HASH_PATH), `${hash}\n`);
+  return hash;
+}

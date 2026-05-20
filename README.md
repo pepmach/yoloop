@@ -21,6 +21,7 @@ The npm package exposes a `yoloop` binary from `dist/cli.js`.
 yoloop init --goal "Build the feature described by the product spec."
 yoloop doctor
 yoloop status
+yoloop orchestrate --objective "Build the feature described by the product spec." --task "Plan the change" --task "Implement the change" --force
 yoloop claim-next --worker worker-001
 yoloop task set-status --id T-001 --status critic_review --actor worker-001
 yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
@@ -51,6 +52,8 @@ The harness keeps human-readable logs for review, but uses JSON/JSONL for enforc
 `raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
 
 The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.ts` are the source of truth for JSON artifacts; generated JSON Schema files can be added later if external tooling needs them.
+
+`yoloop orchestrate` is the deterministic Orchestrator MVP. It reads `raw/`, accepts explicit objective/scope/success/non-goal/gate/task inputs, and writes the durable harness artifacts without launching workers.
 
 Task completion is gated by critic verdicts. `yoloop task set-status --status completed` fails unless the latest verdict for that task is `approved`.
 
