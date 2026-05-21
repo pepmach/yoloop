@@ -26,8 +26,9 @@ yoloop claim-next --worker worker-001
 yoloop task set-status --id T-001 --status critic_review --actor worker-001
 yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
 yoloop task set-status --id T-001 --status completed --actor critic
-yoloop run --adapter claude-code --role worker
-yoloop run --adapter claude-code --until-done --execute
+yoloop run --dry-run
+yoloop run
+yoloop adapter run --adapter claude-code --role worker --dry-run
 ```
 
 The generated harness files are:
@@ -73,17 +74,23 @@ yoloop hook pretooluse
 
 Future adapters for Codex, OpenCode, Cursor, and other agent runtimes should share the same state machine instead of forking the harness logic.
 
-`yoloop run` is dry-run by default. It renders the configured adapter command and prints it. Add `--execute` only when the command is correct for the local agent CLI:
+`yoloop run` executes the sequential worker-critic loop by default. Use `--dry-run` to preview the first claimable task and rendered worker/critic adapter commands without launching agents or changing task state:
 
 ```powershell
-yoloop run --adapter claude-code --role worker --execute
-yoloop run --adapter codex-cli --role critic --execute
-yoloop run --adapter claude-code --until-done --execute
+yoloop run --dry-run
+yoloop run --adapter claude-code
+```
+
+Role-specific adapter testing lives under `yoloop adapter run`. It executes the selected role by default and supports `--dry-run` for command preview:
+
+```powershell
+yoloop adapter run --adapter claude-code --role worker --dry-run
+yoloop adapter run --adapter codex-cli --role critic
 ```
 
 Adapter templates live in `ADAPTERS.json` so Claude Code, Codex, and future hosts can evolve independently of the harness state machine.
 
-`yoloop run --until-done` is the sequential loop runner. Without `--execute`, it prints the first worker and critic commands and changes no state. With `--execute`, it runs one worker and one critic per claimable task, requires the worker to leave the task in `critic_review`, completes only after an approved critic verdict, requeues rejected tasks until retry budget, and stops for human-approval verdicts.
+`yoloop run --until-done`, `yoloop run --execute`, and `yoloop run --role ...` are accepted as deprecated compatibility forms for now. New usage should prefer `yoloop run`, `yoloop run --dry-run`, and `yoloop adapter run --role ...`.
 
 ## Goal Update Flow
 

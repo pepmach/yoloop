@@ -6,6 +6,7 @@ import { init, doctor } from "./app";
 import { renderTemplate } from "./adapters";
 import { pretooluse } from "./hooks";
 import { readTasks } from "./io";
+import { run as runCli } from "./main";
 import { orchestrate } from "./orchestrator";
 import { runUntilDone } from "./runner";
 import { setTaskStatus } from "./tasks";
@@ -156,12 +157,95 @@ test("sequential runner executes worker critic pairs until done", () => {
       "utf8",
     );
 
-    runUntilDone(root, { adapter: "mock", execute: false });
+    runUntilDone(root, { adapter: "mock", dryRun: true });
     assert.equal(readTasks(root).tasks[0].status, "pending");
-    runUntilDone(root, { adapter: "mock", execute: true });
+    runUntilDone(root, { adapter: "mock", dryRun: false });
     const tasks = readTasks(root).tasks;
     assert.equal(tasks[0].status, "completed");
     assert.equal(tasks[1].status, "completed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cli run executes by default and dry-run previews", () => {
+  const root = tempRoot("cli-run");
+  try {
+    init(root, "Loop goal", true);
+    orchestrate(root, {
+      objective: "Run one task",
+      scope: [],
+      success: [],
+      nonGoal: [],
+      gate: [],
+      task: ["Only task"],
+      force: true,
+    });
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
+    writeMockAdapter(root);
+
+    runCli(["run", "--adapter", "mock", "--dry-run"], root);
+    assert.equal(readTasks(root).tasks[0].status, "pending");
+    runCli(["run", "--adapter", "mock"], root);
+    assert.equal(readTasks(root).tasks[0].status, "completed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cli adapter run dry-run does not mutate task state", () => {
+  const root = tempRoot("adapter-run");
+  try {
+    init(root, "Adapter goal", true);
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
+    writeMockAdapter(root);
+
+    runCli(["adapter", "run", "--adapter", "mock", "--role", "worker", "--dry-run"], root);
+    assert.equal(readTasks(root).tasks[0].status, "pending");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cli accepts deprecated run flags with warnings", () => {
+  const root = tempRoot("deprecated-run");
+  try {
+    init(root, "Loop goal", true);
+    orchestrate(root, {
+      objective: "Run one task",
+      scope: [],
+      success: [],
+      nonGoal: [],
+      gate: [],
+      task: ["Only task"],
+      force: true,
+    });
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
+    writeMockAdapter(root);
+
+    const warnings = captureConsoleError(() => {
+      runCli(["run", "--adapter", "mock", "--until-done", "--execute"], root);
+    });
+    assert.ok(warnings.some((message) => message.includes("--until-done is deprecated")));
+    assert.ok(warnings.some((message) => message.includes("--execute is deprecated")));
+    assert.equal(readTasks(root).tasks[0].status, "completed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cli accepts deprecated run role alias with warning", () => {
+  const root = tempRoot("deprecated-role");
+  try {
+    init(root, "Adapter goal", true);
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
+    writeMockAdapter(root);
+
+    const warnings = captureConsoleError(() => {
+      runCli(["run", "--adapter", "mock", "--role", "worker", "--dry-run"], root);
+    });
+    assert.ok(warnings.some((message) => message.includes("yoloop run --role is deprecated")));
+    assert.equal(readTasks(root).tasks[0].status, "pending");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -214,4 +298,42 @@ if (role === "critic") {
 
 process.exit(0);
 `;
+}
+
+function captureConsoleError(fn: () => void): string[] {
+  const original = console.error;
+  const messages: string[] = [];
+  console.error = (...args: unknown[]): void => {
+    messages.push(args.map(String).join(" "));
+  };
+  try {
+    fn();
+  } finally {
+    console.error = original;
+  }
+  return messages;
+}
+
+function writeMockAdapter(root: string): void {
+  writeFileSync(
+    join(root, "ADAPTERS.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        adapters: [
+          {
+            id: "mock",
+            label: "Mock Agent",
+            command: process.execPath,
+            workerArgs: [join(root, "mock-agent.cjs"), "worker"],
+            criticArgs: [join(root, "mock-agent.cjs"), "critic"],
+            grandJuryArgs: [join(root, "mock-agent.cjs"), "grand-jury"],
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
 }

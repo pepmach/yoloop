@@ -7,7 +7,7 @@ import { readLatestVerdict } from "./verdicts";
 
 export type SequentialRunOptions = {
   adapter: string;
-  execute: boolean;
+  dryRun: boolean;
 };
 
 export function runUntilDone(root: string, options: SequentialRunOptions): void {
@@ -17,7 +17,7 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
     fail("loop is paused; resume before running until done");
   }
 
-  if (!options.execute) {
+  if (options.dryRun) {
     dryRunSequentialLoop(root, options.adapter);
     return;
   }
@@ -52,11 +52,11 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
     }
 
     console.log(`iteration ${iteration}: worker starting ${task.id}`);
-    runAdapter(root, options.adapter, "worker", true);
+    runAdapter(root, options.adapter, "worker", false);
     assertTaskStatus(root, task.id, "critic_review", "worker must leave task in critic_review");
 
     console.log(`iteration ${iteration}: critic reviewing ${task.id}`);
-    runAdapter(root, options.adapter, "critic", true);
+    runAdapter(root, options.adapter, "critic", false);
 
     const verdict = readLatestVerdict(root, task.id);
     if (verdict.verdict === "approved") {
@@ -96,7 +96,7 @@ function dryRunSequentialLoop(root: string, adapterId: string): void {
   console.log(`dry run: sequential loop would start with ${task.id} - ${task.title}`);
   console.log(`dry run worker: ${worker.renderedCommand}`);
   console.log(`dry run critic: ${critic.renderedCommand}`);
-  console.log("dry run only; add --execute to run until done");
+  console.log("dry run only; run without --dry-run to execute");
 }
 
 function assertTaskStatus(root: string, taskId: string, expected: TaskStatus, message: string): void {

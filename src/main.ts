@@ -62,12 +62,23 @@ export function run(args: string[], root: string): void {
     case "run": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       const adapter = options.one("adapter") ?? "claude-code";
-      if (options.flag("until-done")) {
-        runUntilDone(root, { adapter, execute: options.flag("execute") });
+      warnDeprecatedFlag(options, "until-done", "yoloop run now runs the sequential loop by default");
+      warnDeprecatedFlag(options, "execute", "yoloop run now executes by default");
+      const roleValue = options.one("role");
+      if (roleValue) {
+        warn("yoloop run --role is deprecated; use yoloop adapter run --role instead");
+        const role = AgentRoleSchema.parse(roleValue);
+        runAdapter(root, adapter, role, options.flag("dry-run"));
         return;
       }
-      const role = AgentRoleSchema.parse(options.one("role") ?? "worker");
-      runAdapter(root, adapter, role, options.flag("execute"));
+      runUntilDone(root, { adapter, dryRun: options.flag("dry-run") });
+      return;
+    }
+    case "adapter": {
+      if (subcommand !== "run") {
+        fail("expected adapter run");
+      }
+      runAdapterCommand(root, rest);
       return;
     }
     case "task":
@@ -111,6 +122,24 @@ function runCriticWriteVerdict(root: string, args: string[]): void {
     options.many("gap"),
     options.one("actor") ?? "critic",
   );
+}
+
+function runAdapterCommand(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  warnDeprecatedFlag(options, "execute", "adapter run now executes by default");
+  const adapter = options.one("adapter") ?? "claude-code";
+  const role = AgentRoleSchema.parse(options.required("role"));
+  runAdapter(root, adapter, role, options.flag("dry-run"));
+}
+
+function warnDeprecatedFlag(options: ParsedOptions, flag: string, replacement: string): void {
+  if (options.flag(flag)) {
+    warn(`--${flag} is deprecated; ${replacement}`);
+  }
+}
+
+function warn(message: string): void {
+  console.error(`warning: ${message}`);
 }
 
 function readStdin(): string {

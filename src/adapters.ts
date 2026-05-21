@@ -17,11 +17,11 @@ import {
 } from "./paths";
 import { AgentAdapter, AgentRole } from "./schemas";
 
-export function runAdapter(root: string, adapterId: string, role: AgentRole, execute: boolean): void {
+export function runAdapter(root: string, adapterId: string, role: AgentRole, dryRun: boolean): void {
   goalIntegrity(root);
   const policy = readPolicy(root);
   const { adapter, args, renderedCommand } = resolveAdapterCommand(root, adapterId, role);
-  if (!execute) {
+  if (dryRun) {
     console.log(`dry run: ${renderedCommand}`);
     return;
   }
