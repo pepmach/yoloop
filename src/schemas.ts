@@ -3,6 +3,9 @@ import { z } from "zod";
 export const AgentRoleSchema = z.enum(["worker", "critic", "grand-jury"]);
 export type AgentRole = z.infer<typeof AgentRoleSchema>;
 
+export const HumanLogKindSchema = z.enum(["progress", "failure", "decision"]);
+export type HumanLogKind = z.infer<typeof HumanLogKindSchema>;
+
 export const TaskStatusSchema = z.enum([
   "pending",
   "in_progress",

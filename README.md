@@ -24,6 +24,7 @@ yoloop status
 yoloop orchestrate --objective "Build the feature described by the product spec." --task "Plan the change" --task "Implement the change" --force
 yoloop claim-next --worker worker-001
 yoloop task set-status --id T-001 --status critic_review --actor worker-001
+yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Finished implementation pass" --body "Changed the parser and ran npm test."
 yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
 yoloop task set-status --id T-001 --status completed --actor critic
 yoloop run --dry-run
@@ -40,9 +41,9 @@ The generated harness files are:
 - `TASKS.json`: structured task ledger.
 - `WORKER_PROMPT.html`: worker session bootstrap.
 - `CRITIC_PROMPT.html`: critic session bootstrap.
-- `PROGRESS.html`: human-readable worker progress.
-- `FAILURES.html`: human-readable failure memory.
-- `DECISIONS.html`: human-readable decision log.
+- `PROGRESS.html`: append-only human-readable worker progress.
+- `FAILURES.html`: append-only human-readable failure memory.
+- `DECISIONS.html`: append-only human-readable decision log.
 - `raw/`: user-supplied product notes, repo context, references, and domain knowledge for the orchestrator, worker, critic, and grand jury.
 - `.yoloop/events.jsonl`: append-only machine event log.
 - `.yoloop/critic-verdicts/`: structured critic verdict output.
@@ -50,6 +51,16 @@ The generated harness files are:
 ## Design Bias
 
 The harness keeps human-readable logs for review, but uses JSON/JSONL for enforcement. Agents can write prose for humans; the harness enforces immutable goals, budgets, task ownership, and policy decisions from structured files.
+
+Workers append curated human log entries through `yoloop log append` instead of directly editing the HTML files:
+
+```powershell
+yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Started implementation" --body "Mapped the relevant modules and selected the task-local edit path."
+yoloop log append --kind failure --task-id T-001 --actor worker-001 --summary "npm test failed" --body "The parser test exposed a missing edge case; next pass will add validation."
+yoloop log append --kind decision --task-id T-001 --actor worker-001 --summary "Kept JSON as source of truth" --body "HTML remains human review material; TASKS.json remains the enforced task ledger."
+```
+
+While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to `PROGRESS.html`, `FAILURES.html`, and `DECISIONS.html`. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads.
 
 `raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
 

@@ -4,6 +4,7 @@ import { runAdapter } from "./adapters";
 import { fail } from "./errors";
 import { printHookDecision, pretooluse } from "./hooks";
 import { goalIntegrity } from "./io";
+import { appendHumanLog, parseHumanLogKind } from "./logs";
 import { orchestrate } from "./orchestrator";
 import { runUntilDone } from "./runner";
 import { AgentRoleSchema } from "./schemas";
@@ -93,6 +94,12 @@ export function run(args: string[], root: string): void {
       }
       runCriticWriteVerdict(root, rest);
       return;
+    case "log":
+      if (subcommand !== "append") {
+        fail("expected log append");
+      }
+      runLogAppend(root, rest);
+      return;
     case "hook":
       if (subcommand !== "pretooluse") {
         fail("expected hook pretooluse");
@@ -130,6 +137,17 @@ function runAdapterCommand(root: string, args: string[]): void {
   const adapter = options.one("adapter") ?? "claude-code";
   const role = AgentRoleSchema.parse(options.required("role"));
   runAdapter(root, adapter, role, options.flag("dry-run"));
+}
+
+function runLogAppend(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  appendHumanLog(root, {
+    kind: parseHumanLogKind(options.required("kind")),
+    taskId: options.one("task-id"),
+    actor: options.one("actor") ?? "worker",
+    summary: options.required("summary"),
+    body: options.many("body").join("\n\n"),
+  });
 }
 
 function warnDeprecatedFlag(options: ParsedOptions, flag: string, replacement: string): void {

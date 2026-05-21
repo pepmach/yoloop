@@ -1,5 +1,6 @@
 import { relative, resolve } from "path";
 import { goalIntegrity, readPolicy } from "./io";
+import { DECISIONS_PATH, FAILURES_PATH, PROGRESS_PATH } from "./paths";
 import { HookInputSchema } from "./schemas";
 
 export type HookDecision =
@@ -38,11 +39,21 @@ export function pretooluse(root: string, rawInput: string): HookDecision {
           return { decision: "block", reason: `command contains denied substring ${JSON.stringify(denied)}` };
         }
       }
+      const appendOnlyLogPath = directAppendOnlyLogWrite(command);
+      if (appendOnlyLogPath) {
+        return {
+          decision: "block",
+          reason: `${appendOnlyLogPath} is append-only; use yoloop log append instead of direct shell writes`,
+        };
+      }
     }
   }
 
   for (const path of hookFilePaths(root, toolInput)) {
     const normalized = normalizePathForPolicy(root, path);
+    if (pathMatchesAny(normalized, appendOnlyLogPaths())) {
+      return { decision: "block", reason: `${normalized} is append-only; use yoloop log append` };
+    }
     if (pathMatchesAny(normalized, policy.immutablePaths)) {
       return { decision: "block", reason: `${normalized} is immutable while yoloop is active` };
     }
@@ -83,6 +94,23 @@ function trimDot(value: string): string {
 
 function pathMatchesAny(path: string, patterns: string[]): boolean {
   return patterns.some((pattern) => pathMatches(path, pattern));
+}
+
+function directAppendOnlyLogWrite(command: string): string | undefined {
+  if (!looksLikeShellWrite(command)) {
+    return undefined;
+  }
+  const lower = command.toLowerCase().replace(/\\/g, "/");
+  return appendOnlyLogPaths().find((path) => lower.includes(path.toLowerCase()));
+}
+
+function looksLikeShellWrite(command: string): boolean {
+  const lower = command.toLowerCase();
+  return [">", ">>", "set-content", "add-content", "out-file", "tee "].some((token) => lower.includes(token));
+}
+
+function appendOnlyLogPaths(): string[] {
+  return [PROGRESS_PATH, FAILURES_PATH, DECISIONS_PATH].map((path) => path.replace(/\\/g, "/"));
 }
 
 function pathMatches(path: string, pattern: string): boolean {

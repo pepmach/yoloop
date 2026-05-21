@@ -20,7 +20,7 @@ export function defaultPolicy(): LoopPolicy {
     maxWallClockMinutes: 480,
     maxRetriesPerTask: 3,
     immutablePaths: [GOAL_PATH, GOAL_HASH_PATH],
-    protectedPathsWhileActive: [POLICY_PATH],
+    protectedPathsWhileActive: [POLICY_PATH, PROGRESS_PATH, FAILURES_PATH, DECISIONS_PATH],
     allowedWriteRoots: ["."],
     denyShellSubstrings: [
       "git reset --hard",
@@ -141,7 +141,7 @@ export function defaultPlan(): string {
     <h2>Phase 2: Implementation</h2>
     <ul>
       <li>Worker claims one pending task from <code>${TASKS_PATH}</code>.</li>
-      <li>Worker updates <code>${PROGRESS_PATH}</code>, <code>${FAILURES_PATH}</code>, and <code>${DECISIONS_PATH}</code> at state transitions.</li>
+      <li>Worker appends curated entries to <code>${PROGRESS_PATH}</code>, <code>${FAILURES_PATH}</code>, and <code>${DECISIONS_PATH}</code> through <code>yoloop log append</code> at state transitions.</li>
       <li>Worker hands off to critic when implementation and local verification are complete.</li>
     </ul>
   </section>
@@ -183,9 +183,9 @@ export function defaultWorkerPrompt(): string {
       <dt><code>${POLICY_PATH}</code></dt><dd>Budgets, protected files, and human approval gates.</dd>
       <dt><code>${PLAN_PATH}</code></dt><dd>Implementation plan.</dd>
       <dt><code>${TASKS_PATH}</code></dt><dd>Source of truth for task status and ownership.</dd>
-      <dt><code>${PROGRESS_PATH}</code></dt><dd>Append-only human-readable progress.</dd>
-      <dt><code>${FAILURES_PATH}</code></dt><dd>Append-only failure memory.</dd>
-      <dt><code>${DECISIONS_PATH}</code></dt><dd>Append-only decision log.</dd>
+      <dt><code>${PROGRESS_PATH}</code></dt><dd>Append-only human-readable progress. Append with <code>yoloop log append --kind progress</code>; do not edit directly.</dd>
+      <dt><code>${FAILURES_PATH}</code></dt><dd>Append-only failure memory. Append with <code>yoloop log append --kind failure</code>; do not edit directly.</dd>
+      <dt><code>${DECISIONS_PATH}</code></dt><dd>Append-only decision log. Append with <code>yoloop log append --kind decision</code>; do not edit directly.</dd>
       <dt><code>${RAW_DIR}/</code></dt><dd>User-supplied product notes, repo context, references, and domain knowledge.</dd>
     </dl>
   </section>
@@ -194,9 +194,9 @@ export function defaultWorkerPrompt(): string {
     <ol>
       <li>Claim exactly one pending task.</li>
       <li>Survey relevant repo context and <code>${RAW_DIR}/</code> before editing.</li>
-      <li>Update <code>${PROGRESS_PATH}</code> at state transitions.</li>
-      <li>Update <code>${FAILURES_PATH}</code> after every failed test, build, or rejected approach.</li>
-      <li>Update <code>${DECISIONS_PATH}</code> for important implementation choices.</li>
+      <li>Append a progress entry at meaningful state transitions with <code>yoloop log append --kind progress --task-id T-001 --summary "..." --body "..."</code>.</li>
+      <li>Append a failure entry after every failed test, build, rejected approach, or critic rejection with <code>yoloop log append --kind failure --task-id T-001 --summary "..." --body "..."</code>.</li>
+      <li>Append a decision entry for important implementation choices that do not require human approval with <code>yoloop log append --kind decision --task-id T-001 --summary "..." --body "..."</code>.</li>
       <li>Stop and request human approval if the task crosses a gate in <code>${POLICY_PATH}</code>.</li>
       <li>Hand off to critic only after deterministic local checks have been run or clearly documented as unavailable.</li>
     </ol>

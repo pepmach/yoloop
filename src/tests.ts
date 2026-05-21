@@ -91,6 +91,56 @@ test("pretooluse blocks changed goal for mutating tools", () => {
   }
 });
 
+test("pretooluse blocks direct edits to append-only human logs", () => {
+  const root = tempRoot("log-hook");
+  try {
+    init(root, "Test goal", true);
+    const editDecision = pretooluse(
+      root,
+      JSON.stringify({ tool_name: "Edit", tool_input: { file_path: "PROGRESS.html" } }),
+    );
+    assert.equal(editDecision.decision, "block");
+
+    const bashDecision = pretooluse(
+      root,
+      JSON.stringify({ tool_name: "Bash", tool_input: { command: "Add-Content PROGRESS.html 'raw log'" } }),
+    );
+    assert.equal(bashDecision.decision, "block");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("log append writes curated HTML entries", () => {
+  const root = tempRoot("log-append");
+  try {
+    init(root, "Test goal", true);
+    runCli([
+      "log",
+      "append",
+      "--kind",
+      "progress",
+      "--task-id",
+      "T-001",
+      "--actor",
+      "worker-001",
+      "--summary",
+      "Implemented parser guard",
+      "--body",
+      "Added validation before state transition.",
+    ], root);
+
+    const progress = readFileSync(join(root, "PROGRESS.html"), "utf8");
+    assert.ok(progress.includes('<article class="yoloop-log-entry" data-kind="progress"'));
+    assert.ok(progress.includes("<h2>Implemented parser guard</h2>"));
+    assert.ok(progress.includes("<code>T-001</code>"));
+    assert.ok(progress.includes("worker-001"));
+    assert.ok(progress.includes("Added validation before state transition."));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("orchestrator writes goal plan tasks and raw context", () => {
   const root = tempRoot("orchestrator");
   try {
