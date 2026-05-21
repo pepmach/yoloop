@@ -52,6 +52,14 @@ The generated harness files are:
 
 The harness keeps human-readable logs for review, but uses JSON/JSONL for enforcement. Agents can write prose for humans; the harness enforces immutable goals, budgets, task ownership, and policy decisions from structured files.
 
+### Artifact Format Policy
+
+Yoloop uses different file formats for different jobs:
+
+- HTML for generated human review surfaces: runtime goals, plans, prompts, progress logs, failure memory, decision logs, and future critic or grand-jury reports.
+- Markdown for source-controlled OSS collaboration docs: README, contributor docs, install docs, public roadmap, and host instruction files.
+- JSON/JSONL for enforcement and machine state: tasks, policy, adapters, verdicts, hashes, and events.
+
 Workers append curated human log entries through `yoloop log append` instead of directly editing the HTML files:
 
 ```powershell
