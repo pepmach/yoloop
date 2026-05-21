@@ -4,6 +4,8 @@ Yoloop is a local-first harness for long-running coding agents. It is designed f
 
 This repo is currently a TypeScript-first MVP control plane. It creates durable state, validates machine artifacts with Zod, enforces policy through hooks, and gives agent sessions a shared artifact protocol.
 
+The current implementation still emits HTML runtime artifacts. The product direction has changed to Markdown-primary human artifacts backed by JSON/JSONL machine state, because Markdown is easier to preview, diff, and review inside Claude Code, Codex, terminals, editors, and GitHub. Treat the HTML artifacts as legacy v0 behavior that will be migrated before a serious public release.
+
 ## Development
 
 ```powershell
@@ -33,7 +35,7 @@ yoloop run
 yoloop adapter run --adapter claude-code --role worker --dry-run
 ```
 
-The generated harness files are:
+The current generated harness files are:
 
 - `GOAL.html`: immutable human-owned goal and success criteria.
 - `LOOP_POLICY.json`: budgets, protected paths, and human approval gates.
@@ -54,29 +56,35 @@ The generated harness files are:
 
 The harness keeps human-readable logs for review, but uses JSON/JSONL for enforcement. Agents can write prose for humans; the harness enforces immutable goals, budgets, task ownership, and policy decisions from structured files.
 
+Yoloop's default execution model is fresh one-shot role sessions. Workers, critics, repair workers, decomposition critics, and grand juries should start from durable artifacts instead of relying on a preserved chat transcript. Startup speed should be improved through concise prompts, context manifests, discovered checks, and role-specific model policy rather than persistent sessions.
+
 ### Artifact Format Policy
 
 Yoloop uses different file formats for different jobs:
 
-- HTML for generated human review surfaces: runtime goals, plans, prompts, progress logs, failure memory, decision logs, and future critic or grand-jury reports.
-- Markdown for source-controlled OSS collaboration docs: README, contributor docs, install docs, public roadmap, and host instruction files.
-- JSON/JSONL for enforcement and machine state: tasks, policy, adapters, verdicts, hashes, and events.
+- Markdown for default human review surfaces: runtime goals, plans, prompts, decomposition review, progress logs, failure memory, decision logs, run reports, README, contributor docs, public roadmap, and host instruction files.
+- JSON/JSONL for enforcement and machine state: tasks, policy, adapters, verdicts, hashes, events, raw context manifests, decision queues, and canonical human log entries.
+- HTML only for optional rich generated reports or dashboards later.
+
+The intended runtime artifact set is `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `DECOMPOSITION_REVIEW.md`, `PROGRESS.md`, `FAILURES.md`, `DECISIONS.md`, and `REPORT.md`, backed by structured state such as `.yoloop/human-log.jsonl`, `.yoloop/context-manifest.json`, `.yoloop/decomposition-verdicts/`, and `.yoloop/decision-queue.json`.
 
 Workers append curated human log entries through `yoloop log append` instead of directly editing the HTML files:
 
 ```powershell
 yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Started implementation" --body "Mapped the relevant modules and selected the task-local edit path."
 yoloop log append --kind failure --task-id T-001 --actor worker-001 --summary "npm test failed" --body "The parser test exposed a missing edge case; next pass will add validation."
-yoloop log append --kind decision --task-id T-001 --actor worker-001 --summary "Kept JSON as source of truth" --body "HTML remains human review material; TASKS.json remains the enforced task ledger."
+yoloop log append --kind decision --task-id T-001 --actor worker-001 --summary "Kept JSON as source of truth" --body "Structured artifacts remain the enforced state; human logs are rendered review material."
 ```
 
-While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to `PROGRESS.html`, `FAILURES.html`, and `DECISIONS.html`. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads.
+While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to the append-only human logs. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads. The next implementation slice should make `.yoloop/human-log.jsonl` canonical and render Markdown log views from it.
 
 `raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
 
 The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.ts` are the source of truth for JSON artifacts; generated JSON Schema files can be added later if external tooling needs them.
 
 `yoloop orchestrate` is the deterministic Orchestrator MVP. It reads `raw/`, accepts explicit objective/scope/success/non-goal/gate/task inputs, and writes the durable harness artifacts without launching workers.
+
+The next orchestration shape adds a blocking decomposition critic between orchestration and workers. It should reject vague tasks, missing success criteria, invalid dependencies, missing checks, unsafe scopes, missing milestone ownership, and plans that violate non-goals or human gates. `yoloop run` should refuse to launch workers unless the latest decomposition verdict is approved for the current goal, plan, policy, and task ledger hashes.
 
 Task completion is gated by critic verdicts. `yoloop task set-status --status completed` fails unless the latest verdict for that task is `approved`.
 
@@ -101,6 +109,8 @@ yoloop hook pretooluse
 
 Future adapters for Codex, OpenCode, Cursor, and other agent runtimes should share the same state machine instead of forking the harness logic.
 
+Installability is not solved yet. The project should add `yoloop install claude|codex|auto`, npm publication prep, and clear verification so users are not left guessing how to connect an installed npm package to Claude Code or Codex. If the `yoloop` npm name is unavailable, the release plan should use a scoped fallback such as `@pepmach/yoloop`.
+
 `yoloop run` executes the sequential worker-critic loop by default. Use `--dry-run` to preview the first claimable task and rendered worker/critic adapter commands without launching agents or changing task state:
 
 ```powershell
@@ -121,11 +131,11 @@ Adapter templates live in `ADAPTERS.json` so Claude Code, Codex, and future host
 
 ## Goal Update Flow
 
-`GOAL.html` is immutable while the loop is active. To change it:
+`GOAL.html` is immutable while the current loop is active. After the Markdown migration, this becomes `GOAL.md`. To change the current goal:
 
 ```powershell
 yoloop pause
-# edit GOAL.html
+# edit GOAL.html for the current implementation; edit GOAL.md after the Markdown migration
 yoloop accept-goal
 yoloop resume
 ```
