@@ -15,6 +15,7 @@ Commands:
 - `/yoloop:run`
 - `/yoloop:adapter-run`
 - `/yoloop:log-append`
+- `/yoloop:grand-jury-write-verdict`
 - `/yoloop:run-until-done`
 
 `/yoloop:run-until-done` is deprecated and kept only as a compatibility command. Prefer `/yoloop:run`.

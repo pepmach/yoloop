@@ -1,4 +1,5 @@
 import { fail } from "./errors";
+import { ensureGrandJuryApproved } from "./grandJury";
 import { appendEvent, goalIntegrity, nowIso, readPolicy, readTasks } from "./io";
 import { resolveAdapterCommand, runAdapter } from "./adapters";
 import { Task, TaskStatus } from "./schemas";
@@ -34,15 +35,7 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
   for (let iteration = 1; iteration <= policy.maxIterations; iteration += 1) {
     const ledger = readTasks(root);
     if (allRunnableTasksCompleted(ledger.tasks)) {
-      appendEvent(root, {
-        timestamp: nowIso(),
-        kind: "loop.completed",
-        actor: "yoloop-runner",
-        taskId: null,
-        message: "Sequential worker-critic loop completed all tasks.",
-        data: { iteration },
-      });
-      console.log("<yoloop-done>");
+      runGrandJuryAndFinish(root, options.adapter, iteration);
       return;
     }
 
@@ -61,6 +54,10 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
     const verdict = readLatestVerdict(root, task.id);
     if (verdict.verdict === "approved") {
       setTaskStatus(root, task.id, "completed", "yoloop-runner", "Completed after approved critic verdict.");
+      if (allRunnableTasksCompleted(readTasks(root).tasks)) {
+        runGrandJuryAndFinish(root, options.adapter, iteration);
+        return;
+      }
       continue;
     }
 
@@ -86,6 +83,13 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
 function dryRunSequentialLoop(root: string, adapterId: string): void {
   const policy = readPolicy(root);
   const ledger = readTasks(root);
+  if (allRunnableTasksCompleted(ledger.tasks)) {
+    const grandJury = resolveAdapterCommand(root, adapterId, "grand-jury");
+    console.log(`dry run: all runnable tasks are completed; grand jury would run next`);
+    console.log(`dry run grand jury: ${grandJury.renderedCommand}`);
+    console.log("dry run only; run without --dry-run to execute");
+    return;
+  }
   const task = nextClaimableTask(ledger, policy.maxRetriesPerTask);
   if (!task) {
     console.log("dry run: no claimable pending task");
@@ -93,10 +97,27 @@ function dryRunSequentialLoop(root: string, adapterId: string): void {
   }
   const worker = resolveAdapterCommand(root, adapterId, "worker");
   const critic = resolveAdapterCommand(root, adapterId, "critic");
+  const grandJury = resolveAdapterCommand(root, adapterId, "grand-jury");
   console.log(`dry run: sequential loop would start with ${task.id} - ${task.title}`);
   console.log(`dry run worker: ${worker.renderedCommand}`);
   console.log(`dry run critic: ${critic.renderedCommand}`);
+  console.log(`dry run grand jury after all tasks complete: ${grandJury.renderedCommand}`);
   console.log("dry run only; run without --dry-run to execute");
+}
+
+function runGrandJuryAndFinish(root: string, adapterId: string, iteration: number): void {
+  console.log("grand jury reviewing completed run");
+  runAdapter(root, adapterId, "grand-jury", false);
+  const verdict = ensureGrandJuryApproved(root);
+  appendEvent(root, {
+    timestamp: nowIso(),
+    kind: "loop.completed",
+    actor: "yoloop-runner",
+    taskId: null,
+    message: "Sequential worker-critic loop completed all tasks and grand jury approved.",
+    data: { iteration, grandJurySummary: verdict.summary, tasksReviewed: verdict.tasksReviewed },
+  });
+  console.log("<yoloop-done>");
 }
 
 function assertTaskStatus(root: string, taskId: string, expected: TaskStatus, message: string): void {

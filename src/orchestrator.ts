@@ -15,6 +15,7 @@ import {
   DECISIONS_PATH,
   EVENTS_PATH,
   FAILURES_PATH,
+  GRAND_JURY_VERDICTS_DIR,
   GOAL_PATH,
   PLAN_PATH,
   POLICY_PATH,
@@ -52,6 +53,7 @@ type RawContextFile = {
 export function orchestrate(root: string, input: OrchestratorInput): void {
   ensureDir(join(root, YOLOOP_DIR));
   ensureDir(join(root, CRITIC_VERDICTS_DIR));
+  ensureDir(join(root, GRAND_JURY_VERDICTS_DIR));
   ensureDir(join(root, RAW_DIR));
 
   const rawContext = readRawContext(root);

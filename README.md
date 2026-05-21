@@ -27,6 +27,7 @@ yoloop task set-status --id T-001 --status critic_review --actor worker-001
 yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Finished implementation pass" --body "Changed the parser and ran npm test."
 yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
 yoloop task set-status --id T-001 --status completed --actor critic
+yoloop grand-jury write-verdict --verdict approved --summary "Final run verified" --check "final=passed:all tasks and logs reviewed"
 yoloop run --dry-run
 yoloop run
 yoloop adapter run --adapter claude-code --role worker --dry-run
@@ -47,6 +48,7 @@ The generated harness files are:
 - `raw/`: user-supplied product notes, repo context, references, and domain knowledge for the orchestrator, worker, critic, and grand jury.
 - `.yoloop/events.jsonl`: append-only machine event log.
 - `.yoloop/critic-verdicts/`: structured critic verdict output.
+- `.yoloop/grand-jury-verdicts/`: structured final run verdict output.
 
 ## Design Bias
 
@@ -81,6 +83,12 @@ Task completion is gated by critic verdicts. `yoloop task set-status --status co
 ```powershell
 yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
 yoloop task set-status --id T-001 --status completed --actor critic
+```
+
+Loop completion is gated by the grand jury. After all runnable tasks are completed, `yoloop run` launches the `grand-jury` adapter and emits `<yoloop-done>` only after the latest final verdict is approved:
+
+```powershell
+yoloop grand-jury write-verdict --verdict approved --summary "Final run verified" --check "final=passed:all tasks, verdicts, failures, decisions, and non-goals reviewed"
 ```
 
 ## Host Adapters

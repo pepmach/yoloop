@@ -213,6 +213,7 @@ test("sequential runner executes worker critic pairs until done", () => {
     const tasks = readTasks(root).tasks;
     assert.equal(tasks[0].status, "completed");
     assert.equal(tasks[1].status, "completed");
+    assert.ok(existsSync(join(root, ".yoloop", "grand-jury-verdicts", "final.latest.json")));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -238,6 +239,51 @@ test("cli run executes by default and dry-run previews", () => {
     assert.equal(readTasks(root).tasks[0].status, "pending");
     runCli(["run", "--adapter", "mock"], root);
     assert.equal(readTasks(root).tasks[0].status, "completed");
+    assert.ok(existsSync(join(root, ".yoloop", "grand-jury-verdicts", "final.latest.json")));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("grand jury rejection blocks loop completion", () => {
+  const root = tempRoot("grand-jury-reject");
+  try {
+    init(root, "Loop goal", true);
+    orchestrate(root, {
+      objective: "Run one task",
+      scope: [],
+      success: [],
+      nonGoal: [],
+      gate: [],
+      task: ["Only task"],
+      force: true,
+    });
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript("rejected"), "utf8");
+    writeMockAdapter(root);
+
+    assert.throws(() => runCli(["run", "--adapter", "mock"], root), /grand jury verdict is rejected/);
+    assert.equal(readTasks(root).tasks[0].status, "completed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("grand jury verdict requires all runnable tasks completed", () => {
+  const root = tempRoot("grand-jury-incomplete");
+  try {
+    init(root, "Loop goal", true);
+    assert.throws(() =>
+      runCli([
+        "grand-jury",
+        "write-verdict",
+        "--verdict",
+        "approved",
+        "--summary",
+        "premature approval",
+        "--check",
+        "review=passed:ok",
+      ], root),
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -301,7 +347,7 @@ test("cli accepts deprecated run role alias with warning", () => {
   }
 });
 
-function mockAgentScript(): string {
+function mockAgentScript(grandJuryVerdict = "approved"): string {
   return `
 const fs = require("fs");
 const path = require("path");
@@ -343,6 +389,24 @@ if (role === "critic") {
     createdAt: now
   };
   fs.writeFileSync(path.join(dir, task.id + ".latest.json"), JSON.stringify(verdict, null, 2) + "\\n");
+  process.exit(0);
+}
+
+if (role === "grand-jury") {
+  const incomplete = ledger.tasks.filter((candidate) => candidate.status !== "completed" && candidate.status !== "cancelled");
+  if (incomplete.length > 0) process.exit(4);
+  const dir = path.join(root, ".yoloop", "grand-jury-verdicts");
+  fs.mkdirSync(dir, { recursive: true });
+  const verdict = {
+    schemaVersion: 1,
+    verdict: "${grandJuryVerdict}",
+    summary: "mock final verdict",
+    checks: [{ name: "final", status: "${grandJuryVerdict === "approved" ? "passed" : "failed"}", evidence: "mock inspected run" }],
+    gaps: ${grandJuryVerdict === "approved" ? "[]" : '["mock unresolved gap"]'},
+    tasksReviewed: ledger.tasks.filter((candidate) => candidate.status !== "cancelled").map((candidate) => candidate.id),
+    createdAt: now
+  };
+  fs.writeFileSync(path.join(dir, "final.latest.json"), JSON.stringify(verdict, null, 2) + "\\n");
   process.exit(0);
 }
 

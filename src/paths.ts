@@ -1,6 +1,7 @@
 export const YOLOOP_DIR = ".yoloop";
 export const RAW_DIR = "raw";
 export const CRITIC_VERDICTS_DIR = ".yoloop/critic-verdicts";
+export const GRAND_JURY_VERDICTS_DIR = ".yoloop/grand-jury-verdicts";
 export const RUNS_DIR = ".yoloop/runs";
 
 export const GOAL_PATH = "GOAL.html";

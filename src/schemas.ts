@@ -118,6 +118,19 @@ export const CriticVerdictSchema = z
 export type CriticVerdict = z.infer<typeof CriticVerdictSchema>;
 export type VerdictCheck = z.infer<typeof VerdictCheckSchema>;
 
+export const GrandJuryVerdictSchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    verdict: VerdictDecisionSchema,
+    summary: z.string(),
+    checks: z.array(VerdictCheckSchema),
+    gaps: z.array(z.string()),
+    tasksReviewed: z.array(z.string()),
+    createdAt: z.string(),
+  })
+  .strict();
+export type GrandJuryVerdict = z.infer<typeof GrandJuryVerdictSchema>;
+
 export const EventSchema = z
   .object({
     timestamp: z.string(),

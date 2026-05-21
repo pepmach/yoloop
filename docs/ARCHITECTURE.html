@@ -15,7 +15,7 @@
       <li>Worker claims one task and implements it.</li>
       <li>Critic verifies deterministic checks, code quality, and task fit.</li>
       <li>Repair worker iterates if critic rejects.</li>
-      <li>Grand jury verifies the whole run before the harness emits <code>&lt;yoloop-done&gt;</code>.</li>
+      <li>Grand jury verifies the whole run, writes a structured final verdict, and only then allows the harness to emit <code>&lt;yoloop-done&gt;</code>.</li>
     </ol>
     <p>Parallel workers are a later feature. They require worktree isolation, ownership-aware tasks, merge strategy, and conflict-safe critic review.</p>
   </section>
@@ -50,12 +50,13 @@
       <li><code>.yoloop/goal.sha256</code></li>
       <li><code>.yoloop/events.jsonl</code></li>
       <li><code>.yoloop/critic-verdicts/*.json</code></li>
+      <li><code>.yoloop/grand-jury-verdicts/*.json</code></li>
     </ul>
   </section>
 
   <section id="host-adapters">
     <h2>Host Adapters</h2>
-    <p><code>ADAPTERS.json</code> defines editable command templates for each agent host. <code>yoloop run</code> renders a selected adapter and role. It is dry-run by default and requires <code>--execute</code> before launching the host process.</p>
+    <p><code>ADAPTERS.json</code> defines editable command templates for each agent host. <code>yoloop run</code> executes the sequential worker-critic-grand-jury loop by default, while <code>yoloop run --dry-run</code> previews the rendered commands. Role-specific diagnostics live under <code>yoloop adapter run --role ...</code>.</p>
     <p>The default catalog includes <code>claude-code</code> and <code>codex-cli</code>. These are adapter templates, not separate implementations. The TypeScript core owns task state, policy state, event logging, and artifact paths.</p>
   </section>
 
@@ -65,10 +66,17 @@
     <p>A task cannot transition to <code>completed</code> unless its latest critic verdict is <code>approved</code>. Rejected and human-approval-required verdicts keep the task out of the completed state.</p>
   </section>
 
+  <section id="grand-jury-verdicts">
+    <h2>Grand Jury Verdicts</h2>
+    <p>After all runnable tasks are completed, <code>yoloop run</code> launches the configured <code>grand-jury</code> adapter. The grand jury writes a structured final verdict with <code>yoloop grand-jury write-verdict</code>. Yoloop writes timestamped final verdicts and a latest pointer under <code>.yoloop/grand-jury-verdicts/</code>.</p>
+    <p>The harness emits <code>&lt;yoloop-done&gt;</code> only when the latest grand jury verdict is <code>approved</code>. Rejected and human-approval-required final verdicts stop the loop after task completion.</p>
+  </section>
+
   <section id="sequential-runner">
     <h2>Sequential Runner</h2>
-    <p><code>yoloop run --until-done</code> runs the conservative worker-critic loop. It is dry-run by default. With <code>--execute</code>, it launches one worker adapter for the next claimable task, requires the worker to hand off through <code>critic_review</code>, launches one critic adapter, then completes only after an approved critic verdict.</p>
+    <p><code>yoloop run</code> runs the conservative sequential loop. It launches one worker adapter for the next claimable task, requires the worker to hand off through <code>critic_review</code>, launches one critic adapter, then completes the task only after an approved critic verdict.</p>
     <p>Rejected verdicts requeue the task until retry budget is exhausted. Human-approval-required verdicts block the task and stop the loop.</p>
+    <p>When all runnable tasks are completed, the runner launches the grand jury adapter and requires an approved final verdict before emitting <code>&lt;yoloop-done&gt;</code>.</p>
   </section>
 
   <section id="policy-enforcement">
@@ -79,6 +87,7 @@
       <li>deny edits to <code>GOAL.html</code>;</li>
       <li>deny edits to <code>.yoloop/goal.sha256</code>;</li>
       <li>deny edits to <code>LOOP_POLICY.json</code> while the loop is active;</li>
+      <li>deny direct edits to append-only human logs;</li>
       <li>deny risky shell command substrings;</li>
       <li>deny mutating tools if the goal hash changed while active.</li>
     </ul>

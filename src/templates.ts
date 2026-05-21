@@ -73,7 +73,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "-p",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
       {
@@ -90,7 +90,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "exec",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
     ],
@@ -158,6 +158,7 @@ export function defaultPlan(): string {
     <ul>
       <li>Grand jury verifies all tasks are complete.</li>
       <li>Grand jury checks for unacknowledged side effects and unresolved failures.</li>
+      <li>Grand jury writes a structured final verdict with <code>yoloop grand-jury write-verdict</code>.</li>
       <li>Harness emits <code>&lt;yoloop-done&gt;</code> only after the final jury passes.</li>
     </ul>
   </section>

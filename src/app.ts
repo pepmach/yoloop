@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { fail } from "./errors";
+import { readLatestGrandJuryVerdict } from "./grandJury";
 import {
   appendEvent,
   atomicWriteFile,
@@ -22,6 +23,7 @@ import {
   DECISIONS_PATH,
   EVENTS_PATH,
   FAILURES_PATH,
+  GRAND_JURY_VERDICTS_DIR,
   GOAL_HASH_PATH,
   GOAL_PATH,
   PLAN_PATH,
@@ -48,6 +50,7 @@ import { nextClaimableTask } from "./tasks";
 export function init(root: string, goal: string | undefined, force: boolean): void {
   ensureDir(join(root, YOLOOP_DIR));
   ensureDir(join(root, CRITIC_VERDICTS_DIR));
+  ensureDir(join(root, GRAND_JURY_VERDICTS_DIR));
   ensureDir(join(root, RAW_DIR));
 
   const objective = goal ?? "Describe the goal here before launching the loop.";
@@ -85,10 +88,17 @@ export function status(root: string): void {
   const policy = readPolicy(root);
   const ledger = readTasks(root);
   let goalStatus = "hash matches";
+  let grandJuryStatus = "none";
   try {
     goalStatus = goalIntegrity(root);
   } catch (error) {
     goalStatus = `FAILED: ${formatError(error)}`;
+  }
+  try {
+    const verdict = readLatestGrandJuryVerdict(root);
+    grandJuryStatus = `${verdict.verdict}: ${verdict.summary}`;
+  } catch {
+    grandJuryStatus = "none";
   }
 
   const counts = {
@@ -105,6 +115,7 @@ export function status(root: string): void {
 
   console.log(`active: ${policy.active}`);
   console.log(`goal: ${goalStatus}`);
+  console.log(`grand jury: ${grandJuryStatus}`);
   console.log(`raw context files: ${rawContextFileCount(root)}`);
   console.log(`tasks: ${ledger.tasks.length} total`);
   console.log(`  pending: ${counts.pending}`);
@@ -137,7 +148,7 @@ export function doctor(root: string): void {
     DECISIONS_PATH,
     EVENTS_PATH,
   ];
-  const requiredDirs = [YOLOOP_DIR, RAW_DIR, CRITIC_VERDICTS_DIR];
+  const requiredDirs = [YOLOOP_DIR, RAW_DIR, CRITIC_VERDICTS_DIR, GRAND_JURY_VERDICTS_DIR];
 
   for (const path of requiredDirs) {
     const fullPath = join(root, path);

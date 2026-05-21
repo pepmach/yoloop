@@ -26,7 +26,8 @@
     <h2>v0.2: Local Runner</h2>
     <ul>
       <li>Add <code>yoloop run</code>.</li>
-      <li>Add <code>yoloop run --until-done</code> for the sequential worker-critic loop.</li>
+      <li>Make <code>yoloop run</code> execute the sequential worker-critic loop.</li>
+      <li>Add <code>yoloop run --dry-run</code> for preview.</li>
       <li>Spawn one worker session per task.</li>
       <li>Spawn one critic session after each worker handoff.</li>
       <li>Support configurable command templates for Claude Code, Codex, and other agent hosts.</li>
@@ -36,11 +37,14 @@
   </section>
 
   <section id="v0-3">
-    <h2>v0.3: Critic Verdict Enforcement</h2>
+    <h2>v0.3: Verdict Enforcement And Human Logs</h2>
     <ul>
       <li>Add <code>yoloop critic write-verdict</code>.</li>
+      <li>Add <code>yoloop grand-jury write-verdict</code>.</li>
+      <li>Add <code>yoloop log append</code> for curated append-only human logs.</li>
       <li>Validate verdicts against the Zod schemas in <code>src/schemas.ts</code>.</li>
       <li>Only allow <code>completed</code> transitions when the latest verdict is <code>approved</code>.</li>
+      <li>Emit final <code>&lt;yoloop-done&gt;</code> only when the latest grand jury verdict is <code>approved</code>.</li>
       <li>Require deterministic check evidence for approval.</li>
     </ul>
   </section>
@@ -61,14 +65,14 @@
       <li>Add bounded worker pool.</li>
       <li>Assign tasks by dependency graph and path ownership.</li>
       <li>Run per-task critics before integration.</li>
-      <li>Run grand jury after all tasks complete.</li>
+      <li>Run integration grand jury after approved task branches are merged.</li>
     </ul>
   </section>
 
   <section id="v1">
     <h2>v1.0: Overnight Mode</h2>
     <ul>
-      <li>End-to-end <code>yoloop run --until-done</code>.</li>
+      <li>End-to-end <code>yoloop run</code>.</li>
       <li>Host adapters for Claude Code, Codex, OpenCode, and Cursor-like CLIs.</li>
       <li>Restart-safe run state.</li>
       <li>Final <code>&lt;yoloop-done&gt;</code> emission only after grand jury approval.</li>

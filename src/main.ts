@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { init, doctor, status, setActive, acceptGoal } from "./app";
 import { runAdapter } from "./adapters";
 import { fail } from "./errors";
+import { writeGrandJuryVerdict } from "./grandJury";
 import { printHookDecision, pretooluse } from "./hooks";
 import { goalIntegrity } from "./io";
 import { appendHumanLog, parseHumanLogKind } from "./logs";
@@ -94,6 +95,12 @@ export function run(args: string[], root: string): void {
       }
       runCriticWriteVerdict(root, rest);
       return;
+    case "grand-jury":
+      if (subcommand !== "write-verdict") {
+        fail("expected grand-jury write-verdict");
+      }
+      runGrandJuryWriteVerdict(root, rest);
+      return;
     case "log":
       if (subcommand !== "append") {
         fail("expected log append");
@@ -128,6 +135,18 @@ function runCriticWriteVerdict(root: string, args: string[]): void {
     options.many("check"),
     options.many("gap"),
     options.one("actor") ?? "critic",
+  );
+}
+
+function runGrandJuryWriteVerdict(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  writeGrandJuryVerdict(
+    root,
+    parseVerdictDecision(options.required("verdict")),
+    options.required("summary"),
+    options.many("check"),
+    options.many("gap"),
+    options.one("actor") ?? "grand-jury",
   );
 }
 
