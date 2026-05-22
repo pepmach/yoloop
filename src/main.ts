@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { init, doctor, status, setActive, acceptGoal } from "./app";
 import { runAdapter } from "./adapters";
+import { refreshContextManifest } from "./context";
 import { fail } from "./errors";
 import { writeGrandJuryVerdict } from "./grandJury";
 import { printHookDecision, pretooluse } from "./hooks";
@@ -61,6 +62,12 @@ export function run(args: string[], root: string): void {
       });
       return;
     }
+    case "context":
+      if (subcommand !== "refresh") {
+        fail("expected context refresh");
+      }
+      runContextRefresh(root, rest);
+      return;
     case "run": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       const adapter = options.one("adapter") ?? "claude-code";
@@ -116,6 +123,11 @@ export function run(args: string[], root: string): void {
     default:
       fail(`unknown command ${command ?? ""}`.trim());
   }
+}
+
+function runContextRefresh(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  refreshContextManifest(root, options.one("actor") ?? "human");
 }
 
 function runTaskSetStatus(root: string, args: string[]): void {

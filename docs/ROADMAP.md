@@ -66,6 +66,8 @@ Status: implemented baseline.
 
 ## v0.6: Wizard, Doctor, And Context Manifest
 
+Status: context manifest baseline implemented; wizard and check discovery remain.
+
 - Add guided `yoloop orchestrate --wizard` or equivalent setup command.
 - Ask for objective, scope, success criteria, non-goals, human gates, milestone strategy, and build/test/check instructions.
 - Preserve non-interactive flags for agents and automation.

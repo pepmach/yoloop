@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { createHash } from "crypto";
 import { tmpdir } from "os";
 import { join } from "path";
 import * as assert from "assert";
@@ -14,6 +15,10 @@ import { writeCriticVerdict } from "./verdicts";
 
 function tempRoot(name: string): string {
   return mkdtempSync(join(tmpdir(), `yoloop-${name}-`));
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function test(name: string, fn: () => void): void {
@@ -38,7 +43,34 @@ test("init creates raw and doctor passes", () => {
     assert.ok(existsSync(join(root, "FAILURES.md")));
     assert.ok(existsSync(join(root, "DECISIONS.md")));
     assert.ok(existsSync(join(root, ".yoloop", "human-log.jsonl")));
+    assert.ok(existsSync(join(root, ".yoloop", "context-manifest.json")));
     assert.equal(existsSync(join(root, "GOAL.html")), false);
+    doctor(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("context refresh writes raw manifest with hashes and media types", () => {
+  const root = tempRoot("context-refresh");
+  try {
+    init(root, "Test goal", true);
+    writeFileSync(join(root, "raw", "notes.md"), "# Notes\n\nDomain context.\n", "utf8");
+    writeFileSync(join(root, "raw", "config.json"), '{"feature":true}\n', "utf8");
+
+    runCli(["context", "refresh"], root);
+
+    const manifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
+    assert.equal(manifest.schemaVersion, 1);
+    assert.equal(manifest.rawDir, "raw");
+    assert.deepEqual(
+      manifest.files.map((file: { path: string }) => file.path),
+      ["raw/config.json", "raw/notes.md"],
+    );
+    assert.equal(manifest.files[0].bytes, Buffer.byteLength('{"feature":true}\n'));
+    assert.equal(manifest.files[0].sha256, sha256('{"feature":true}\n'));
+    assert.equal(manifest.files[0].mediaType, "application/json");
+    assert.equal(manifest.files[1].mediaType, "text/markdown");
     doctor(root);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -72,6 +104,10 @@ test("completed task requires approved critic verdict", () => {
 
 test("adapter template renders raw placeholder", () => {
   assert.equal(renderTemplate("read {{raw}} and {{goal}}"), "read raw and GOAL.md");
+  assert.equal(
+    renderTemplate("read {{context_manifest}} before {{raw}}"),
+    "read .yoloop/context-manifest.json before raw",
+  );
 });
 
 test("pretooluse blocks immutable goal edits", () => {
@@ -249,12 +285,21 @@ test("cli run executes by default and dry-run previews", () => {
       task: ["Only task"],
       force: true,
     });
+    const postOrchestrateManifest = JSON.parse(
+      readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"),
+    );
+    assert.equal(postOrchestrateManifest.files.length, 0);
+    writeFileSync(join(root, "raw", "late.txt"), "late raw context\n", "utf8");
     writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
     writeMockAdapter(root);
 
     runCli(["run", "--adapter", "mock", "--dry-run"], root);
+    const postDryRunManifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
+    assert.equal(postDryRunManifest.files.length, 0);
     assert.equal(readTasks(root).tasks[0].status, "pending");
     runCli(["run", "--adapter", "mock"], root);
+    const postRunManifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
+    assert.deepEqual(postRunManifest.files.map((file: { path: string }) => file.path), ["raw/late.txt"]);
     assert.equal(readTasks(root).tasks[0].status, "completed");
     assert.ok(existsSync(join(root, ".yoloop", "grand-jury-verdicts", "final.latest.json")));
   } finally {

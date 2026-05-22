@@ -1,4 +1,5 @@
 import {
+  CONTEXT_MANIFEST_PATH,
   DECISIONS_PATH,
   FAILURES_PATH,
   GOAL_HASH_PATH,
@@ -66,7 +67,7 @@ export function defaultAdapters(): AdapterCatalog {
         command: "claude",
         workerArgs: [
           "-p",
-          `Read {{worker_prompt}} first, inspect ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
+          `Read {{worker_prompt}} first, inspect {{context_manifest}} and ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
         ],
         criticArgs: [
           "-p",
@@ -74,7 +75,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "-p",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
       {
@@ -83,7 +84,7 @@ export function defaultAdapters(): AdapterCatalog {
         command: "codex",
         workerArgs: [
           "exec",
-          `Read {{worker_prompt}} first, inspect ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
+          `Read {{worker_prompt}} first, inspect {{context_manifest}} and ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
         ],
         criticArgs: [
           "exec",
@@ -91,7 +92,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "exec",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
     ],
@@ -162,6 +163,7 @@ You are the worker in a Yoloop harness. You run as a fresh one-shot role session
 - \`${POLICY_PATH}\`: budgets, protected files, and human approval gates.
 - \`${PLAN_PATH}\`: implementation plan.
 - \`${TASKS_PATH}\`: source of truth for task status and ownership.
+- \`${CONTEXT_MANIFEST_PATH}\`: manifest of files currently under \`${RAW_DIR}/\`.
 - \`${PROGRESS_PATH}\`: rendered progress log. Append with \`yoloop log append --kind progress\`; do not edit directly.
 - \`${FAILURES_PATH}\`: rendered failure memory. Append with \`yoloop log append --kind failure\`; do not edit directly.
 - \`${DECISIONS_PATH}\`: rendered decision log. Append with \`yoloop log append --kind decision\`; do not edit directly.
@@ -190,6 +192,7 @@ You are the critic in a Yoloop harness. You run as a fresh one-shot role session
 - \`${POLICY_PATH}\`
 - \`${PLAN_PATH}\`
 - \`${TASKS_PATH}\`
+- \`${CONTEXT_MANIFEST_PATH}\`
 - \`${PROGRESS_PATH}\`
 - \`${FAILURES_PATH}\`
 - \`${DECISIONS_PATH}\`

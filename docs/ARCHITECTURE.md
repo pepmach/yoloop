@@ -79,7 +79,7 @@ Optional HTML belongs later as generated reports or dashboards, not as primary r
 
 User-specified check instructions win over auto-detection. Preflight should not silently rewrite policy during `run`; detected checks should be accepted through the wizard or an explicit command.
 
-`raw/` should be indexed into `.yoloop/context-manifest.json` before orchestration and loop execution. The first manifest should include paths, sizes, hashes, and file types. Summaries can come later.
+`raw/` is indexed into `.yoloop/context-manifest.json` by `yoloop context refresh`, `yoloop init`, `yoloop orchestrate`, and non-dry-run `yoloop run`. The manifest includes paths, byte sizes, SHA-256 hashes, and media types. Summaries can come later.
 
 ## Host Adapters
 

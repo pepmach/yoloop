@@ -11,6 +11,7 @@ export const TASKS_PATH = "TASKS.json";
 export const ADAPTERS_PATH = "ADAPTERS.json";
 export const EVENTS_PATH = ".yoloop/events.jsonl";
 export const HUMAN_LOG_PATH = ".yoloop/human-log.jsonl";
+export const CONTEXT_MANIFEST_PATH = ".yoloop/context-manifest.json";
 
 export const PLAN_PATH = "PLAN.md";
 export const WORKER_PROMPT_PATH = "WORKER_PROMPT.md";

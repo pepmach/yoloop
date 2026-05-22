@@ -9,6 +9,7 @@ Commands:
 - `/yoloop:init`
 - `/yoloop:status`
 - `/yoloop:doctor`
+- `/yoloop:context-refresh`
 - `/yoloop:pause`
 - `/yoloop:accept-goal`
 - `/yoloop:resume`

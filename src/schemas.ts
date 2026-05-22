@@ -156,6 +156,25 @@ export const EventSchema = z
   .strict();
 export type Event = z.infer<typeof EventSchema>;
 
+export const ContextManifestFileSchema = z
+  .object({
+    path: z.string(),
+    bytes: z.number().int(),
+    sha256: z.string(),
+    mediaType: z.string(),
+  })
+  .strict();
+
+export const ContextManifestSchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    rawDir: z.string(),
+    generatedAt: z.string(),
+    files: z.array(ContextManifestFileSchema),
+  })
+  .strict();
+export type ContextManifest = z.infer<typeof ContextManifestSchema>;
+
 export const HookInputSchema = z
   .object({
     tool_name: z.string(),

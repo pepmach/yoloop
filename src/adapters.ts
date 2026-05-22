@@ -3,6 +3,7 @@ import { join } from "path";
 import { fail } from "./errors";
 import { appendEvent, atomicWriteFile, ensureDir, goalIntegrity, nowIso, readAdapters, readPolicy } from "./io";
 import {
+  CONTEXT_MANIFEST_PATH,
   CRITIC_PROMPT_PATH,
   DECISIONS_PATH,
   FAILURES_PATH,
@@ -105,6 +106,7 @@ export function renderTemplate(value: string): string {
     .replace(/\{\{tasks\}\}/g, TASKS_PATH)
     .replace(/\{\{worker_prompt\}\}/g, WORKER_PROMPT_PATH)
     .replace(/\{\{critic_prompt\}\}/g, CRITIC_PROMPT_PATH)
+    .replace(/\{\{context_manifest\}\}/g, CONTEXT_MANIFEST_PATH)
     .replace(/\{\{progress\}\}/g, PROGRESS_PATH)
     .replace(/\{\{failures\}\}/g, FAILURES_PATH)
     .replace(/\{\{decisions\}\}/g, DECISIONS_PATH)

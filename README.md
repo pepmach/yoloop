@@ -19,6 +19,7 @@ The npm package exposes a `yoloop` binary from `dist/cli.js`.
 
 ```powershell
 yoloop init --goal "Build the feature described by the product spec."
+yoloop context refresh
 yoloop doctor
 yoloop status
 yoloop orchestrate --objective "Build the feature described by the product spec." --task "Plan the change" --task "Implement the change" --force
@@ -48,6 +49,7 @@ The generated harness files are:
 - `raw/`: user-supplied product notes, repo context, references, and domain knowledge for the orchestrator, worker, critic, and grand jury.
 - `.yoloop/events.jsonl`: append-only machine event log.
 - `.yoloop/human-log.jsonl`: canonical append-only human log state rendered into progress, failure, and decision Markdown files.
+- `.yoloop/context-manifest.json`: sorted manifest of `raw/` files with path, byte size, SHA-256 hash, and media type.
 - `.yoloop/critic-verdicts/`: structured critic verdict output.
 - `.yoloop/grand-jury-verdicts/`: structured final run verdict output.
 
@@ -65,7 +67,7 @@ Yoloop uses different file formats for different jobs:
 - JSON/JSONL for enforcement and machine state: tasks, policy, adapters, verdicts, hashes, events, raw context manifests, decision queues, and canonical human log entries.
 - HTML only for optional rich generated reports or dashboards later.
 
-The current runtime artifact set is `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`, backed by `.yoloop/human-log.jsonl`. Future slices add `DECOMPOSITION_REVIEW.md`, `REPORT.md`, `.yoloop/context-manifest.json`, `.yoloop/decomposition-verdicts/`, and `.yoloop/decision-queue.json`.
+The current runtime artifact set is `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`, backed by `.yoloop/human-log.jsonl` and `.yoloop/context-manifest.json`. Future slices add `DECOMPOSITION_REVIEW.md`, `REPORT.md`, `.yoloop/decomposition-verdicts/`, and `.yoloop/decision-queue.json`.
 
 Workers append curated human log entries through `yoloop log append` instead of directly editing the rendered Markdown files:
 
@@ -77,7 +79,7 @@ yoloop log append --kind decision --task-id T-001 --actor worker-001 --summary "
 
 While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to the append-only human logs and their canonical JSONL source. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads.
 
-`raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
+`raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. `yoloop context refresh` writes `.yoloop/context-manifest.json` so fresh agent sessions can inspect available context without rediscovering the raw tree from scratch.
 
 The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.ts` are the source of truth for JSON artifacts; generated JSON Schema files can be added later if external tooling needs them.
 

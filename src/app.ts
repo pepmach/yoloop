@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { fail } from "./errors";
+import { readContextManifest, refreshContextManifest } from "./context";
 import { readLatestGrandJuryVerdict } from "./grandJury";
 import {
   appendEvent,
@@ -19,6 +20,7 @@ import {
 import { emptyLogMarkdown } from "./logs";
 import {
   ADAPTERS_PATH,
+  CONTEXT_MANIFEST_PATH,
   CRITIC_PROMPT_PATH,
   CRITIC_VERDICTS_DIR,
   DECISIONS_PATH,
@@ -67,6 +69,7 @@ export function init(root: string, goal: string | undefined, force: boolean): vo
   writeNew(join(root, FAILURES_PATH), emptyLogMarkdown("Failures"), force);
   writeNew(join(root, DECISIONS_PATH), emptyLogMarkdown("Decisions"), force);
   writeNew(join(root, EVENTS_PATH), "", force);
+  refreshContextManifest(root, "yoloop", true);
 
   if (force || !existsSync(join(root, GOAL_HASH_PATH))) {
     atomicWriteFile(join(root, GOAL_HASH_PATH), `${goalHash(root)}\n`);
@@ -142,6 +145,7 @@ export function doctor(root: string): void {
     POLICY_PATH,
     TASKS_PATH,
     ADAPTERS_PATH,
+    CONTEXT_MANIFEST_PATH,
     PLAN_PATH,
     WORKER_PROMPT_PATH,
     CRITIC_PROMPT_PATH,
@@ -169,6 +173,7 @@ export function doctor(root: string): void {
   readPolicy(root);
   readTasks(root);
   readAdapters(root);
+  readContextManifest(root);
   goalIntegrity(root);
 
   console.log("doctor: ok");

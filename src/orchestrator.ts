@@ -8,6 +8,7 @@ import {
   prettyJson,
   writeNew,
 } from "./io";
+import { refreshContextManifest } from "./context";
 import { emptyLogMarkdown } from "./logs";
 import {
   ADAPTERS_PATH,
@@ -73,6 +74,7 @@ export function orchestrate(root: string, input: OrchestratorInput): void {
   writeNew(join(root, FAILURES_PATH), emptyLogMarkdown("Failures"), input.force);
   writeNew(join(root, DECISIONS_PATH), emptyLogMarkdown("Decisions"), input.force);
   writeNew(join(root, EVENTS_PATH), "", input.force);
+  refreshContextManifest(root, "orchestrator", true);
   const goalSha256 = acceptCurrentGoalHash(root);
 
   appendEvent(root, {
