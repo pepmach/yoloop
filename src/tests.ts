@@ -5,7 +5,7 @@ import { join } from "path";
 import * as assert from "assert";
 import { init, doctor } from "./app";
 import { renderTemplate } from "./adapters";
-import { discoverCheckCommands } from "./checks";
+import { discoverCheckCommands, resolveCheckPlan } from "./checks";
 import { pretooluse } from "./hooks";
 import { readTasks } from "./io";
 import { run as runCli } from "./main";
@@ -111,8 +111,42 @@ test("check discovery reads package scripts without executing them", () => {
       discovered.map((check) => check.command),
       ["npm run build", "npm run lint", "npm test", "npm run typecheck", "npm run integration"],
     );
+    assert.deepEqual(
+      discovered.map((check) => [check.kind, check.name, check.packageManager]),
+      [
+        ["build", "build", "npm"],
+        ["lint", "lint", "npm"],
+        ["test", "test", "npm"],
+        ["typecheck", "typecheck", "npm"],
+        ["integration", "integration", "npm"],
+      ],
+    );
     doctor(root);
     assert.equal(existsSync(join(root, "ran.txt")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("check discovery detects pnpm package manager", () => {
+  const root = tempRoot("pnpm-discovery");
+  try {
+    init(root, "Test goal", true);
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { build: "vite build", test: "vitest run" } }, null, 2),
+      "utf8",
+    );
+    writeFileSync(join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+
+    const discovered = discoverCheckCommands(root);
+    assert.deepEqual(
+      discovered.map((check) => [check.kind, check.name, check.command, check.packageManager]),
+      [
+        ["build", "build", "pnpm build", "pnpm"],
+        ["test", "test", "pnpm test", "pnpm"],
+      ],
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -124,7 +158,7 @@ test("doctor rejects configured checks without command text", () => {
     init(root, "Test goal", true);
     const policyPath = join(root, "LOOP_POLICY.json");
     const policy = JSON.parse(readFileSync(policyPath, "utf8"));
-    policy.checks = [{ name: "test", command: "", source: "user" }];
+    policy.checks = [{ kind: "test", name: "test", command: "", source: "user" }];
     writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
 
     assert.throws(() => doctor(root), /parse LOOP_POLICY\.json/);
@@ -142,6 +176,84 @@ test("doctor verify-checks runs configured checks", () => {
       "require('fs').writeFileSync(require('path').join(__dirname, 'configured-ran.txt'), 'ok')",
       "utf8",
     );
+    const policyPath = join(root, "LOOP_POLICY.json");
+    const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+    policy.checks = [
+      {
+        kind: "check",
+        name: "configured",
+        command: `${shellQuote(process.execPath)} ${shellQuote(join(root, "verify-configured.cjs"))}`,
+        source: "test",
+      },
+    ];
+    writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+
+    runCli(["doctor", "--verify-checks"], root);
+
+    assert.equal(existsSync(join(root, "configured-ran.txt")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("doctor verify-checks runs configured and discovered checks together", () => {
+  const root = tempRoot("verify-merged-checks");
+  try {
+    init(root, "Test goal", true);
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { test: "node discovered.cjs" } }, null, 2),
+      "utf8",
+    );
+    writeFileSync(
+      join(root, "discovered.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'discovered-ran.txt'), 'ok')",
+      "utf8",
+    );
+    writeFileSync(
+      join(root, "configured.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'configured-ran.txt'), 'ok')",
+      "utf8",
+    );
+    const policyPath = join(root, "LOOP_POLICY.json");
+    const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+    policy.checks = [
+      {
+        kind: "build",
+        name: "build",
+        command: `${shellQuote(process.execPath)} ${shellQuote(join(root, "configured.cjs"))}`,
+        source: "user",
+        packageManager: "node",
+      },
+    ];
+    writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+
+    doctor(root);
+    const plan = resolveCheckPlan(root, JSON.parse(readFileSync(policyPath, "utf8")).checks);
+    assert.deepEqual(
+      plan.selected.map((check) => [check.kind, check.name]),
+      [
+        ["build", "build"],
+        ["test", "test"],
+      ],
+    );
+    assert.deepEqual(plan.packageManagers, ["node", "npm"]);
+    assert.equal(existsSync(join(root, "discovered-ran.txt")), false);
+    assert.equal(existsSync(join(root, "configured-ran.txt")), false);
+
+    runCli(["doctor", "--verify-checks"], root);
+
+    assert.equal(existsSync(join(root, "configured-ran.txt")), true);
+    assert.equal(existsSync(join(root, "discovered-ran.txt")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("policy checks override discovered checks by kind and name", () => {
+  const root = tempRoot("policy-overrides-discovered");
+  try {
+    init(root, "Test goal", true);
     writeFileSync(
       join(root, "package.json"),
       JSON.stringify({ scripts: { test: "node discovered-should-not-run.cjs" } }, null, 2),
@@ -152,13 +264,19 @@ test("doctor verify-checks runs configured checks", () => {
       "require('fs').writeFileSync(require('path').join(__dirname, 'discovered-ran.txt'), 'bad')",
       "utf8",
     );
+    writeFileSync(
+      join(root, "configured-test.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'configured-ran.txt'), 'ok')",
+      "utf8",
+    );
     const policyPath = join(root, "LOOP_POLICY.json");
     const policy = JSON.parse(readFileSync(policyPath, "utf8"));
     policy.checks = [
       {
-        name: "configured",
-        command: `${shellQuote(process.execPath)} ${shellQuote(join(root, "verify-configured.cjs"))}`,
-        source: "test",
+        kind: "test",
+        name: "test",
+        command: `${shellQuote(process.execPath)} ${shellQuote(join(root, "configured-test.cjs"))}`,
+        source: "user",
       },
     ];
     writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
@@ -172,32 +290,6 @@ test("doctor verify-checks runs configured checks", () => {
   }
 });
 
-test("doctor verify-checks runs discovered checks when none are configured", () => {
-  const root = tempRoot("verify-discovered-checks");
-  try {
-    init(root, "Test goal", true);
-    writeFileSync(
-      join(root, "package.json"),
-      JSON.stringify({ scripts: { test: "node discovered.cjs" } }, null, 2),
-      "utf8",
-    );
-    writeFileSync(
-      join(root, "discovered.cjs"),
-      "require('fs').writeFileSync(require('path').join(__dirname, 'discovered-ran.txt'), 'ok')",
-      "utf8",
-    );
-
-    doctor(root);
-    assert.equal(existsSync(join(root, "discovered-ran.txt")), false);
-
-    runCli(["doctor", "--verify-checks"], root);
-
-    assert.equal(existsSync(join(root, "discovered-ran.txt")), true);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("doctor verify-checks fails when a check exits nonzero", () => {
   const root = tempRoot("verify-failing-check");
   try {
@@ -206,6 +298,7 @@ test("doctor verify-checks fails when a check exits nonzero", () => {
     const policy = JSON.parse(readFileSync(policyPath, "utf8"));
     policy.checks = [
       {
+        kind: "test",
         name: "failing",
         command: `${shellQuote(process.execPath)} -e "process.exit(7)"`,
         source: "test",

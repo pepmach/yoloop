@@ -1,10 +1,26 @@
 import { spawnSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { CheckCommand, CheckCommandSchema } from "./schemas";
+import { CheckCommand, CheckCommandSchema, CheckKind } from "./schemas";
 import { fail } from "./errors";
 
 const PACKAGE_SCRIPT_CHECKS = ["build", "lint", "test", "typecheck", "check", "e2e", "integration"];
+const PACKAGE_SCRIPT_KIND: Record<string, CheckKind> = {
+  build: "build",
+  lint: "lint",
+  test: "test",
+  typecheck: "typecheck",
+  check: "check",
+  e2e: "integration",
+  integration: "integration",
+};
+
+export type CheckPlan = {
+  configured: CheckCommand[];
+  discovered: CheckCommand[];
+  selected: CheckCommand[];
+  packageManagers: string[];
+};
 
 export function discoverCheckCommands(root: string): CheckCommand[] {
   return uniqueChecks([
@@ -13,6 +29,22 @@ export function discoverCheckCommands(root: string): CheckCommand[] {
     ...discoverPythonChecks(root),
     ...discoverGoChecks(root),
   ]);
+}
+
+export function resolveCheckPlan(root: string, configuredChecks: CheckCommand[]): CheckPlan {
+  const configured = configuredChecks.map((check) => checkCommand(check));
+  const discovered = discoverCheckCommands(root);
+  const configuredKeys = new Set(configured.map(checkKey));
+  const selected = [
+    ...configured,
+    ...discovered.filter((check) => !configuredKeys.has(checkKey(check))),
+  ];
+  return {
+    configured,
+    discovered,
+    selected,
+    packageManagers: uniqueStrings([...configured, ...discovered].map((check) => check.packageManager).filter(isString)),
+  };
 }
 
 export function verifyCheckCommands(root: string, checks: CheckCommand[], timeoutMs: number): void {
@@ -75,9 +107,11 @@ function discoverPackageJsonChecks(root: string): CheckCommand[] {
     }
     checks.push(
       checkCommand({
+        kind: PACKAGE_SCRIPT_KIND[name],
         name,
         command: packageScriptCommand(runner, name),
         source: `package.json:scripts.${name}`,
+        packageManager: runner,
       }),
     );
   }
@@ -89,8 +123,20 @@ function discoverCargoChecks(root: string): CheckCommand[] {
     return [];
   }
   return [
-    checkCommand({ name: "cargo-build", command: "cargo build", source: "Cargo.toml" }),
-    checkCommand({ name: "cargo-test", command: "cargo test", source: "Cargo.toml" }),
+    checkCommand({
+      kind: "build",
+      name: "cargo-build",
+      command: "cargo build",
+      source: "Cargo.toml",
+      packageManager: "cargo",
+    }),
+    checkCommand({
+      kind: "test",
+      name: "cargo-test",
+      command: "cargo test",
+      source: "Cargo.toml",
+      packageManager: "cargo",
+    }),
   ];
 }
 
@@ -103,14 +149,30 @@ function discoverPythonChecks(root: string): CheckCommand[] {
   if (!raw.includes("pytest")) {
     return [];
   }
-  return [checkCommand({ name: "pytest", command: "python -m pytest", source: "pyproject.toml" })];
+  return [
+    checkCommand({
+      kind: "test",
+      name: "pytest",
+      command: "python -m pytest",
+      source: "pyproject.toml",
+      packageManager: "python",
+    }),
+  ];
 }
 
 function discoverGoChecks(root: string): CheckCommand[] {
   if (!existsSync(join(root, "go.mod"))) {
     return [];
   }
-  return [checkCommand({ name: "go-test", command: "go test ./...", source: "go.mod" })];
+  return [
+    checkCommand({
+      kind: "test",
+      name: "go-test",
+      command: "go test ./...",
+      source: "go.mod",
+      packageManager: "go",
+    }),
+  ];
 }
 
 function packageRunner(root: string): "npm" | "pnpm" | "yarn" | "bun" {
@@ -147,10 +209,11 @@ function uniqueChecks(checks: CheckCommand[]): CheckCommand[] {
   const seen = new Set<string>();
   const unique: CheckCommand[] = [];
   for (const check of checks) {
-    if (seen.has(check.name)) {
+    const key = checkKey(check);
+    if (seen.has(key)) {
       continue;
     }
-    seen.add(check.name);
+    seen.add(key);
     unique.push(check);
   }
   return unique;
@@ -158,4 +221,25 @@ function uniqueChecks(checks: CheckCommand[]): CheckCommand[] {
 
 function checkCommand(value: CheckCommand): CheckCommand {
   return CheckCommandSchema.parse(value);
+}
+
+function checkKey(check: CheckCommand): string {
+  return `${check.kind}:${check.name}`;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    unique.push(value);
+  }
+  return unique;
+}
+
+function isString(value: string | undefined): value is string {
+  return typeof value === "string";
 }

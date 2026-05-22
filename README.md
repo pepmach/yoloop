@@ -46,7 +46,7 @@ node dist/cli.js doctor --refresh-context
 node dist/cli.js status
 ```
 
-Optionally run configured checks from `LOOP_POLICY.json`, or discovered checks when no configured checks exist:
+Optionally run the selected check plan. Yoloop merges user-configured checks from `LOOP_POLICY.json` with discovered checks, with user entries overriding discovered entries that share the same `kind:name`:
 
 ```powershell
 node dist/cli.js doctor --verify-checks
@@ -91,7 +91,7 @@ Normal commands are short. Role-specific diagnostics are nested under `adapter r
 | `yoloop context refresh` | Refresh `.yoloop/context-manifest.json` from `raw/`. |
 | `yoloop doctor` | Run cheap validation only. |
 | `yoloop doctor --refresh-context` | Run cheap validation and refresh the raw context manifest. |
-| `yoloop doctor --verify-checks` | Execute configured checks, or discovered checks when none are configured. |
+| `yoloop doctor --verify-checks` | Execute the merged configured-plus-discovered check plan. |
 | `yoloop status` | Print loop activity, goal hash status, grand jury status, raw context count, and task counts. |
 | `yoloop orchestrate` | Write goal, plan, prompts, tasks, policy, and context references from explicit inputs. |
 | `yoloop run` | Execute the sequential worker-critic-grand-jury loop. |
@@ -130,7 +130,7 @@ Human-facing artifacts are Markdown by default:
 Machine-enforced artifacts stay structured:
 
 - `TASKS.json`: task ledger.
-- `LOOP_POLICY.json`: budgets, protected paths, human gates, and configured check commands.
+- `LOOP_POLICY.json`: budgets, protected paths, human gates, and typed configured check commands.
 - `ADAPTERS.json`: editable host adapter command templates.
 - `.yoloop/goal.sha256`: accepted hash for immutable `GOAL.md`.
 - `.yoloop/events.jsonl`: append-only machine event log.
@@ -172,12 +172,27 @@ Normal preflight does not run real build/test/lint/typecheck commands. Use the e
 yoloop doctor --verify-checks
 ```
 
+Each check has a `kind`, `name`, `command`, `source`, and optional `packageManager`:
+
+```json
+{
+  "kind": "test",
+  "name": "test",
+  "command": "npm test",
+  "source": "user",
+  "packageManager": "npm"
+}
+```
+
+Supported check kinds are `build`, `lint`, `typecheck`, `test`, `integration`, and `check`.
+
 Check selection is:
 
-1. Run `LOOP_POLICY.json.checks` if configured.
-2. Otherwise run discovered checks from files such as `package.json`, `Cargo.toml`, `pyproject.toml`, and `go.mod`.
+1. Start with `LOOP_POLICY.json.checks`.
+2. Add discovered checks from files such as `package.json`, `Cargo.toml`, `pyproject.toml`, and `go.mod`.
+3. If a configured check and discovered check share the same `kind:name`, use the configured check.
 
-Discovery reads files only. It does not spawn package managers during normal preflight.
+Discovery reads files only. It detects package managers such as `npm`, `pnpm`, `yarn`, `bun`, `cargo`, `python`, and `go`, but it does not spawn package managers during normal preflight.
 
 ## Host Adapters
 

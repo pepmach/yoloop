@@ -79,7 +79,9 @@ Optional HTML belongs later as generated reports or dashboards, not as primary r
 
 Normal preflight must stay cheap. It must not run real checks such as build, test, lint, or typecheck. Those belong to critic execution or the explicit `yoloop doctor --verify-checks` path.
 
-User-specified check instructions win over auto-detection. `yoloop doctor --verify-checks` runs configured `LOOP_POLICY.json` checks when present; otherwise it runs discovered checks. Preflight does not silently rewrite policy during `run`; detected checks should be accepted through the wizard or an explicit command.
+Checks are typed by `kind`: `build`, `lint`, `typecheck`, `test`, `integration`, or `check`. Discovery attaches package/tool metadata such as `npm`, `pnpm`, `yarn`, `bun`, `cargo`, `python`, or `go`.
+
+User-specified check instructions live in `LOOP_POLICY.json.checks` and are merged with discovery. `yoloop doctor --verify-checks` runs the merged selected check plan; configured checks override discovered checks with the same `kind:name`, while unrelated discovered checks still run. Preflight does not silently rewrite policy during `run`; detected checks should be accepted through the wizard or an explicit command.
 
 `raw/` is indexed into `.yoloop/context-manifest.json` by `yoloop context refresh`, `yoloop init`, `yoloop orchestrate`, and non-dry-run `yoloop run`. The manifest includes paths, byte sizes, SHA-256 hashes, and media types. Summaries can come later.
 

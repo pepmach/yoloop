@@ -39,11 +39,16 @@ export type VerdictDecision = z.infer<typeof VerdictDecisionSchema>;
 export const CheckStatusSchema = z.enum(["passed", "failed", "skipped"]);
 export type CheckStatus = z.infer<typeof CheckStatusSchema>;
 
+export const CheckKindSchema = z.enum(["build", "lint", "typecheck", "test", "integration", "check"]);
+export type CheckKind = z.infer<typeof CheckKindSchema>;
+
 export const CheckCommandSchema = z
   .object({
+    kind: CheckKindSchema,
     name: z.string().min(1),
     command: z.string().min(1),
     source: z.string().min(1),
+    packageManager: z.string().min(1).optional(),
   })
   .strict();
 export type CheckCommand = z.infer<typeof CheckCommandSchema>;

@@ -8,4 +8,4 @@ yoloop doctor
 
 Report missing files, parse failures, or goal hash mismatch.
 
-Normal doctor checks are cheap and do not run build/test/lint/typecheck commands. Use `yoloop doctor --verify-checks` to run configured checks, or discovered checks when none are configured. Use `yoloop doctor --refresh-context` if the raw context manifest should be refreshed during doctor.
+Normal doctor checks are cheap and do not run build/test/lint/typecheck commands. Use `yoloop doctor --verify-checks` to run the merged configured-plus-discovered check plan. Use `yoloop doctor --refresh-context` if the raw context manifest should be refreshed during doctor.

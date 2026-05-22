@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
-import { discoverCheckCommands, verifyCheckCommands } from "./checks";
+import { resolveCheckPlan, verifyCheckCommands } from "./checks";
 import { fail } from "./errors";
 import { readContextManifest, refreshContextManifest } from "./context";
 import { readLatestGrandJuryVerdict } from "./grandJury";
@@ -185,17 +185,18 @@ export function doctor(root: string, options: DoctorOptions = {}): void {
   readAdapters(root);
   readContextManifest(root);
   goalIntegrity(root);
-  const discoveredChecks = discoverCheckCommands(root);
-  const checksToVerify = policy.checks.length > 0 ? policy.checks : discoveredChecks;
+  const checkPlan = resolveCheckPlan(root, policy.checks);
 
   if (!options.quiet) {
     console.log("doctor: ok");
     console.log(`raw context files: ${rawContextFileCount(root)}`);
-    console.log(`configured checks: ${policy.checks.length}`);
-    console.log(`discovered checks: ${discoveredChecks.length}`);
+    console.log(`configured checks: ${checkPlan.configured.length}`);
+    console.log(`discovered checks: ${checkPlan.discovered.length}`);
+    console.log(`selected checks: ${checkPlan.selected.length}`);
+    console.log(`package managers: ${checkPlan.packageManagers.join(", ") || "none"}`);
   }
   if (options.verifyChecks) {
-    verifyCheckCommands(root, checksToVerify, policy.maxWallClockMinutes * 60 * 1000);
+    verifyCheckCommands(root, checkPlan.selected, policy.maxWallClockMinutes * 60 * 1000);
   }
 }
 
