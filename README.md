@@ -21,6 +21,7 @@ The npm package exposes a `yoloop` binary from `dist/cli.js`.
 yoloop init --goal "Build the feature described by the product spec."
 yoloop context refresh
 yoloop doctor
+yoloop doctor --verify-checks
 yoloop status
 yoloop orchestrate --objective "Build the feature described by the product spec." --task "Plan the change" --task "Implement the change" --force
 yoloop claim-next --worker worker-001
@@ -33,6 +34,24 @@ yoloop run --dry-run
 yoloop run
 yoloop adapter run --adapter claude-code --role worker --dry-run
 ```
+
+## CLI Shape
+
+Normal commands are short and role-specific diagnostics are nested:
+
+- `yoloop init`: create the harness artifacts.
+- `yoloop context refresh`: refresh `.yoloop/context-manifest.json` from `raw/`.
+- `yoloop doctor`: run cheap validation only.
+- `yoloop doctor --refresh-context`: run cheap validation and refresh the raw context manifest.
+- `yoloop doctor --verify-checks`: execute configured checks, or discovered checks when none are configured.
+- `yoloop orchestrate`: write goal, plan, prompts, tasks, policy, and context references from explicit inputs.
+- `yoloop run`: execute the sequential worker-critic-grand-jury loop.
+- `yoloop run --dry-run`: preview the next loop action without launching agents or mutating task state.
+- `yoloop adapter run --role worker|critic|grand-jury`: test one adapter role directly.
+- `yoloop log append`: append curated progress, failure, or decision entries.
+- `yoloop critic write-verdict`: write the structured verdict that gates task completion.
+- `yoloop grand-jury write-verdict`: write the structured final verdict that gates `<yoloop-done>`.
+- `yoloop hook pretooluse`: let host plugins ask Yoloop whether a proposed tool call should proceed.
 
 The generated harness files are:
 
