@@ -3,6 +3,7 @@ import { join } from "path";
 import { fail } from "./errors";
 import { appendEvent, atomicWriteFile, ensureDir, goalIntegrity, nowIso, readAdapters, readPolicy } from "./io";
 import {
+  CONTEXT_MANIFEST_PATH,
   CRITIC_PROMPT_PATH,
   DECISIONS_PATH,
   FAILURES_PATH,
@@ -17,11 +18,11 @@ import {
 } from "./paths";
 import { AgentAdapter, AgentRole } from "./schemas";
 
-export function runAdapter(root: string, adapterId: string, role: AgentRole, execute: boolean): void {
+export function runAdapter(root: string, adapterId: string, role: AgentRole, dryRun: boolean): void {
   goalIntegrity(root);
   const policy = readPolicy(root);
   const { adapter, args, renderedCommand } = resolveAdapterCommand(root, adapterId, role);
-  if (!execute) {
+  if (dryRun) {
     console.log(`dry run: ${renderedCommand}`);
     return;
   }
@@ -105,6 +106,7 @@ export function renderTemplate(value: string): string {
     .replace(/\{\{tasks\}\}/g, TASKS_PATH)
     .replace(/\{\{worker_prompt\}\}/g, WORKER_PROMPT_PATH)
     .replace(/\{\{critic_prompt\}\}/g, CRITIC_PROMPT_PATH)
+    .replace(/\{\{context_manifest\}\}/g, CONTEXT_MANIFEST_PATH)
     .replace(/\{\{progress\}\}/g, PROGRESS_PATH)
     .replace(/\{\{failures\}\}/g, FAILURES_PATH)
     .replace(/\{\{decisions\}\}/g, DECISIONS_PATH)

@@ -1,4 +1,4 @@
-Accept the current `GOAL.html` hash after a planned human edit.
+Accept the current `GOAL.md` hash after a planned human edit.
 
 Use Bash to run:
 

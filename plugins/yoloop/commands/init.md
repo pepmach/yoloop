@@ -6,4 +6,4 @@ Use Bash to run:
 yoloop init --goal "$ARGUMENTS"
 ```
 
-After initialization, tell the user to edit `GOAL.html`, `PLAN.html`, and `TASKS.json`, then run `yoloop doctor`.
+After initialization, tell the user to edit `GOAL.md`, `PLAN.md`, and `TASKS.json`, then run `yoloop doctor`.

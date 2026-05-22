@@ -1,9 +1,9 @@
-Run the Yoloop sequential worker-critic loop.
+Deprecated compatibility command for the old Yoloop sequential loop UX.
 
-Use Bash to run a dry-run first:
+Use Bash to run:
 
 ```sh
 yoloop run --until-done $ARGUMENTS
 ```
 
-Only add `--execute` when the rendered worker and critic adapter commands are correct for this project.
+Tell the user this command is deprecated. The preferred command is `/yoloop:run`, which delegates to `yoloop run`.

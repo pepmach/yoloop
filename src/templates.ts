@@ -1,8 +1,10 @@
 import {
+  CONTEXT_MANIFEST_PATH,
   DECISIONS_PATH,
   FAILURES_PATH,
   GOAL_HASH_PATH,
   GOAL_PATH,
+  HUMAN_LOG_PATH,
   PLAN_PATH,
   POLICY_PATH,
   PROGRESS_PATH,
@@ -20,7 +22,7 @@ export function defaultPolicy(): LoopPolicy {
     maxWallClockMinutes: 480,
     maxRetriesPerTask: 3,
     immutablePaths: [GOAL_PATH, GOAL_HASH_PATH],
-    protectedPathsWhileActive: [POLICY_PATH],
+    protectedPathsWhileActive: [POLICY_PATH, HUMAN_LOG_PATH, PROGRESS_PATH, FAILURES_PATH, DECISIONS_PATH],
     allowedWriteRoots: ["."],
     denyShellSubstrings: [
       "git reset --hard",
@@ -52,6 +54,7 @@ export function defaultPolicy(): LoopPolicy {
         commandSubstrings: ["deploy", "migration"],
       },
     ],
+    checks: [],
   };
 }
 
@@ -65,7 +68,7 @@ export function defaultAdapters(): AdapterCatalog {
         command: "claude",
         workerArgs: [
           "-p",
-          `Read {{worker_prompt}} first, inspect ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
+          `Read {{worker_prompt}} first, inspect {{context_manifest}} and ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
         ],
         criticArgs: [
           "-p",
@@ -73,7 +76,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "-p",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
       {
@@ -82,7 +85,7 @@ export function defaultAdapters(): AdapterCatalog {
         command: "codex",
         workerArgs: [
           "exec",
-          `Read {{worker_prompt}} first, inspect ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
+          `Read {{worker_prompt}} first, inspect {{context_manifest}} and ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
         ],
         criticArgs: [
           "exec",
@@ -90,7 +93,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "exec",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
     ],
@@ -120,191 +123,132 @@ export function defaultTasks(): TaskLedger {
 }
 
 export function defaultPlan(): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop Plan</title>
-</head>
-<body>
-  <h1>Plan</h1>
-  <section id="foundation">
-    <h2>Phase 1: Foundation</h2>
-    <ul>
-      <li>Read <code>${RAW_DIR}/</code> for user-provided context before decomposing work.</li>
-      <li>Convert <code>${GOAL_PATH}</code> into scoped tasks.</li>
-      <li>Keep each task small enough for one worker session.</li>
-      <li>Require critic approval before marking a task complete.</li>
-    </ul>
-  </section>
-  <section id="implementation">
-    <h2>Phase 2: Implementation</h2>
-    <ul>
-      <li>Worker claims one pending task from <code>${TASKS_PATH}</code>.</li>
-      <li>Worker updates <code>${PROGRESS_PATH}</code>, <code>${FAILURES_PATH}</code>, and <code>${DECISIONS_PATH}</code> at state transitions.</li>
-      <li>Worker hands off to critic when implementation and local verification are complete.</li>
-    </ul>
-  </section>
-  <section id="verification">
-    <h2>Phase 3: Verification</h2>
-    <ul>
-      <li>Critic runs deterministic checks first.</li>
-      <li>Critic performs gap analysis against <code>${GOAL_PATH}</code>, <code>${PLAN_PATH}</code>, and the task contract.</li>
-      <li>Critic writes a verdict with <code>yoloop critic write-verdict</code>.</li>
-    </ul>
-  </section>
-  <section id="final-jury">
-    <h2>Phase 4: Final Jury</h2>
-    <ul>
-      <li>Grand jury verifies all tasks are complete.</li>
-      <li>Grand jury checks for unacknowledged side effects and unresolved failures.</li>
-      <li>Harness emits <code>&lt;yoloop-done&gt;</code> only after the final jury passes.</li>
-    </ul>
-  </section>
-</body>
-</html>
+  return `# Plan
+
+## Phase 1: Foundation
+
+- Read \`${RAW_DIR}/\` for user-provided context before decomposing work.
+- Convert \`${GOAL_PATH}\` into scoped tasks.
+- Keep each task small enough for one fresh worker session.
+- Require critic approval before marking a task complete.
+
+## Phase 2: Implementation
+
+- Worker claims one pending task from \`${TASKS_PATH}\`.
+- Worker appends curated entries to \`${PROGRESS_PATH}\`, \`${FAILURES_PATH}\`, and \`${DECISIONS_PATH}\` through \`yoloop log append\` at state transitions.
+- Worker hands off to critic when implementation and local verification are complete.
+
+## Phase 3: Verification
+
+- Critic runs deterministic checks first.
+- Critic performs gap analysis against \`${GOAL_PATH}\`, \`${PLAN_PATH}\`, and the task contract.
+- Critic writes a verdict with \`yoloop critic write-verdict\`.
+
+## Phase 4: Final Jury
+
+- Grand jury verifies all tasks are complete.
+- Grand jury checks for unacknowledged side effects and unresolved failures.
+- Grand jury writes a structured final verdict with \`yoloop grand-jury write-verdict\`.
+- Harness emits \`<yoloop-done>\` only after the final jury passes.
 `;
 }
 
 export function defaultWorkerPrompt(): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop Worker Prompt</title>
-</head>
-<body>
-  <h1>Worker Prompt</h1>
-  <p>You are the worker in a Yoloop harness.</p>
-  <section id="read-first">
-    <h2>Read These Files First</h2>
-    <dl>
-      <dt><code>${GOAL_PATH}</code></dt><dd>Immutable human objective and success criteria.</dd>
-      <dt><code>${POLICY_PATH}</code></dt><dd>Budgets, protected files, and human approval gates.</dd>
-      <dt><code>${PLAN_PATH}</code></dt><dd>Implementation plan.</dd>
-      <dt><code>${TASKS_PATH}</code></dt><dd>Source of truth for task status and ownership.</dd>
-      <dt><code>${PROGRESS_PATH}</code></dt><dd>Append-only human-readable progress.</dd>
-      <dt><code>${FAILURES_PATH}</code></dt><dd>Append-only failure memory.</dd>
-      <dt><code>${DECISIONS_PATH}</code></dt><dd>Append-only decision log.</dd>
-      <dt><code>${RAW_DIR}/</code></dt><dd>User-supplied product notes, repo context, references, and domain knowledge.</dd>
-    </dl>
-  </section>
-  <section id="protocol">
-    <h2>Protocol</h2>
-    <ol>
-      <li>Claim exactly one pending task.</li>
-      <li>Survey relevant repo context and <code>${RAW_DIR}/</code> before editing.</li>
-      <li>Update <code>${PROGRESS_PATH}</code> at state transitions.</li>
-      <li>Update <code>${FAILURES_PATH}</code> after every failed test, build, or rejected approach.</li>
-      <li>Update <code>${DECISIONS_PATH}</code> for important implementation choices.</li>
-      <li>Stop and request human approval if the task crosses a gate in <code>${POLICY_PATH}</code>.</li>
-      <li>Hand off to critic only after deterministic local checks have been run or clearly documented as unavailable.</li>
-    </ol>
-  </section>
-</body>
-</html>
+  return `# Worker Prompt
+
+You are the worker in a Yoloop harness. You run as a fresh one-shot role session, so start from the durable artifacts instead of relying on prior chat history.
+
+## Read First
+
+- \`${GOAL_PATH}\`: immutable human objective and success criteria.
+- \`${POLICY_PATH}\`: budgets, protected files, and human approval gates.
+- \`${PLAN_PATH}\`: implementation plan.
+- \`${TASKS_PATH}\`: source of truth for task status and ownership.
+- \`${CONTEXT_MANIFEST_PATH}\`: manifest of files currently under \`${RAW_DIR}/\`.
+- \`${PROGRESS_PATH}\`: rendered progress log. Append with \`yoloop log append --kind progress\`; do not edit directly.
+- \`${FAILURES_PATH}\`: rendered failure memory. Append with \`yoloop log append --kind failure\`; do not edit directly.
+- \`${DECISIONS_PATH}\`: rendered decision log. Append with \`yoloop log append --kind decision\`; do not edit directly.
+- \`${RAW_DIR}/\`: user-supplied product notes, repo context, references, and domain knowledge.
+
+## Protocol
+
+1. Claim exactly one pending task.
+2. Survey relevant repo context and \`${RAW_DIR}/\` before editing.
+3. Append a progress entry at meaningful state transitions with \`yoloop log append --kind progress --task-id T-001 --summary "..." --body "..."\`.
+4. Append a failure entry after every failed test, build, rejected approach, or critic rejection with \`yoloop log append --kind failure --task-id T-001 --summary "..." --body "..."\`.
+5. Append a decision entry for important implementation choices that do not require human approval with \`yoloop log append --kind decision --task-id T-001 --summary "..." --body "..."\`.
+6. Stop and request human approval if the task crosses a gate in \`${POLICY_PATH}\`.
+7. Hand off to critic only after deterministic local checks have been run or clearly documented as unavailable.
 `;
 }
 
 export function defaultCriticPrompt(): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop Critic Prompt</title>
-</head>
-<body>
-  <h1>Critic Prompt</h1>
-  <p>You are the critic in a Yoloop harness.</p>
-  <section id="read">
-    <h2>Read</h2>
-    <ul>
-      <li><code>${GOAL_PATH}</code></li>
-      <li><code>${POLICY_PATH}</code></li>
-      <li><code>${PLAN_PATH}</code></li>
-      <li><code>${TASKS_PATH}</code></li>
-      <li><code>${PROGRESS_PATH}</code></li>
-      <li><code>${FAILURES_PATH}</code></li>
-      <li><code>${DECISIONS_PATH}</code></li>
-      <li><code>${RAW_DIR}/</code> context relevant to the task</li>
-      <li>the current git diff</li>
-    </ul>
-  </section>
-  <section id="verification-order">
-    <h2>Verification Order</h2>
-    <ol>
-      <li>Confirm the claimed task matches the goal and plan.</li>
-      <li>Run deterministic checks first: format, lint, typecheck, tests, build, and integration checks when available.</li>
-      <li>Inspect the diff for regression risk, hidden scope expansion, missing tests, and unacknowledged side effects.</li>
-      <li>Verify failures and decisions are documented.</li>
-      <li>Write a structured verdict with <code>yoloop critic write-verdict</code>.</li>
-    </ol>
-  </section>
-  <section id="rejection-rules">
-    <h2>Do Not Approve If</h2>
-    <ul>
-      <li>success criteria are unverified;</li>
-      <li>deterministic checks are skipped without a credible reason;</li>
-      <li>the worker edited immutable or protected files;</li>
-      <li>failures are unresolved or undocumented;</li>
-      <li>the implementation expands scope beyond the task contract.</li>
-    </ul>
-  </section>
-  <section id="verdict-command">
-    <h2>Verdict Command</h2>
-    <pre><code>yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified implementation" --check "npm test=passed:clean"</code></pre>
-    <p>Use <code>--verdict rejected</code> or <code>--verdict human-approval-required</code> when the task must not be completed.</p>
-  </section>
-</body>
-</html>
+  return `# Critic Prompt
+
+You are the critic in a Yoloop harness. You run as a fresh one-shot role session and must verify from source artifacts, not from the worker's claims.
+
+## Read
+
+- \`${GOAL_PATH}\`
+- \`${POLICY_PATH}\`
+- \`${PLAN_PATH}\`
+- \`${TASKS_PATH}\`
+- \`${CONTEXT_MANIFEST_PATH}\`
+- \`${PROGRESS_PATH}\`
+- \`${FAILURES_PATH}\`
+- \`${DECISIONS_PATH}\`
+- \`${RAW_DIR}/\` context relevant to the task
+- the current git diff
+
+## Verification Order
+
+1. Confirm the claimed task matches the goal and plan.
+2. Run deterministic checks first: format, lint, typecheck, tests, build, and integration checks when available.
+3. Inspect the diff for regression risk, hidden scope expansion, missing tests, and unacknowledged side effects.
+4. Verify failures and decisions are documented.
+5. Write a structured verdict with \`yoloop critic write-verdict\`.
+
+## Do Not Approve If
+
+- success criteria are unverified;
+- deterministic checks are skipped without a credible reason;
+- the worker edited immutable or protected files;
+- failures are unresolved or undocumented;
+- the implementation expands scope beyond the task contract.
+
+## Verdict Command
+
+\`\`\`powershell
+yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified implementation" --check "npm test=passed:clean"
+\`\`\`
+
+Use \`--verdict rejected\` or \`--verdict human-approval-required\` when the task must not be completed.
 `;
 }
 
-export function emptyLogHtml(title: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop ${title}</title>
-</head>
-<body>
-  <h1>${title}</h1>
-  <section id="entries">
-  </section>
-</body>
-</html>
-`;
-}
+export function goalMarkdown(objective: string): string {
+  return `# Objective
 
-export function goalHtml(objective: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop Goal</title>
-</head>
-<body>
-  <h1>Objective</h1>
-  <p>${escapeHtml(objective)}</p>
-  <h1>Scope</h1>
-  <ul><li>Define the intended product or code change here.</li></ul>
-  <h1>Success Criteria</h1>
-  <ul><li>List concrete, verifiable outcomes.</li></ul>
-  <h1>Non-goals</h1>
-  <ul><li>List explicit exclusions.</li></ul>
-  <h1>Human-required Gates</h1>
-  <ul><li>List decisions that must stop the loop for human approval.</li></ul>
-  <h1>Additional Context</h1>
-  <p>Put supporting files, repo notes, product references, and domain knowledge in <code>${RAW_DIR}/</code>.</p>
-</body>
-</html>
-`;
-}
+${objective}
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+# Scope
+
+- Define the intended product or code change here.
+
+# Success Criteria
+
+- List concrete, verifiable outcomes.
+
+# Non-goals
+
+- List explicit exclusions.
+
+# Human-required Gates
+
+- List decisions that must stop the loop for human approval.
+
+# Additional Context
+
+Put supporting files, repo notes, product references, and domain knowledge in \`${RAW_DIR}/\`.
+`;
 }

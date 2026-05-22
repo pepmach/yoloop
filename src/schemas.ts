@@ -3,6 +3,22 @@ import { z } from "zod";
 export const AgentRoleSchema = z.enum(["worker", "critic", "grand-jury"]);
 export type AgentRole = z.infer<typeof AgentRoleSchema>;
 
+export const HumanLogKindSchema = z.enum(["progress", "failure", "decision"]);
+export type HumanLogKind = z.infer<typeof HumanLogKindSchema>;
+
+export const HumanLogEntrySchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    kind: HumanLogKindSchema,
+    taskId: z.string().nullable(),
+    actor: z.string(),
+    summary: z.string(),
+    body: z.string(),
+    createdAt: z.string(),
+  })
+  .strict();
+export type HumanLogEntry = z.infer<typeof HumanLogEntrySchema>;
+
 export const TaskStatusSchema = z.enum([
   "pending",
   "in_progress",
@@ -22,6 +38,15 @@ export type VerdictDecision = z.infer<typeof VerdictDecisionSchema>;
 
 export const CheckStatusSchema = z.enum(["passed", "failed", "skipped"]);
 export type CheckStatus = z.infer<typeof CheckStatusSchema>;
+
+export const CheckCommandSchema = z
+  .object({
+    name: z.string().min(1),
+    command: z.string().min(1),
+    source: z.string().min(1),
+  })
+  .strict();
+export type CheckCommand = z.infer<typeof CheckCommandSchema>;
 
 export const HumanGateSchema = z
   .object({
@@ -44,6 +69,7 @@ export const LoopPolicySchema = z
     allowedWriteRoots: z.array(z.string()),
     denyShellSubstrings: z.array(z.string()),
     humanGates: z.array(HumanGateSchema),
+    checks: z.array(CheckCommandSchema),
   })
   .strict();
 export type LoopPolicy = z.infer<typeof LoopPolicySchema>;
@@ -115,6 +141,19 @@ export const CriticVerdictSchema = z
 export type CriticVerdict = z.infer<typeof CriticVerdictSchema>;
 export type VerdictCheck = z.infer<typeof VerdictCheckSchema>;
 
+export const GrandJuryVerdictSchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    verdict: VerdictDecisionSchema,
+    summary: z.string(),
+    checks: z.array(VerdictCheckSchema),
+    gaps: z.array(z.string()),
+    tasksReviewed: z.array(z.string()),
+    createdAt: z.string(),
+  })
+  .strict();
+export type GrandJuryVerdict = z.infer<typeof GrandJuryVerdictSchema>;
+
 export const EventSchema = z
   .object({
     timestamp: z.string(),
@@ -126,6 +165,25 @@ export const EventSchema = z
   })
   .strict();
 export type Event = z.infer<typeof EventSchema>;
+
+export const ContextManifestFileSchema = z
+  .object({
+    path: z.string(),
+    bytes: z.number().int(),
+    sha256: z.string(),
+    mediaType: z.string(),
+  })
+  .strict();
+
+export const ContextManifestSchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    rawDir: z.string(),
+    generatedAt: z.string(),
+    files: z.array(ContextManifestFileSchema),
+  })
+  .strict();
+export type ContextManifest = z.infer<typeof ContextManifestSchema>;
 
 export const HookInputSchema = z
   .object({

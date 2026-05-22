@@ -1,9 +1,12 @@
 import { readFileSync } from "fs";
 import { init, doctor, status, setActive, acceptGoal } from "./app";
 import { runAdapter } from "./adapters";
+import { refreshContextManifest } from "./context";
 import { fail } from "./errors";
+import { writeGrandJuryVerdict } from "./grandJury";
 import { printHookDecision, pretooluse } from "./hooks";
 import { goalIntegrity } from "./io";
+import { appendHumanLog, parseHumanLogKind } from "./logs";
 import { orchestrate } from "./orchestrator";
 import { runUntilDone } from "./runner";
 import { AgentRoleSchema } from "./schemas";
@@ -22,9 +25,14 @@ export function run(args: string[], root: string): void {
     case "status":
       status(root);
       return;
-    case "doctor":
-      doctor(root);
+    case "doctor": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      doctor(root, {
+        refreshContext: options.flag("refresh-context"),
+        verifyChecks: options.flag("verify-checks"),
+      });
       return;
+    }
     case "pause": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       setActive(root, false, options.one("actor") ?? "human");
@@ -59,15 +67,32 @@ export function run(args: string[], root: string): void {
       });
       return;
     }
+    case "context":
+      if (subcommand !== "refresh") {
+        fail("expected context refresh");
+      }
+      runContextRefresh(root, rest);
+      return;
     case "run": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       const adapter = options.one("adapter") ?? "claude-code";
-      if (options.flag("until-done")) {
-        runUntilDone(root, { adapter, execute: options.flag("execute") });
+      warnDeprecatedFlag(options, "until-done", "yoloop run now runs the sequential loop by default");
+      warnDeprecatedFlag(options, "execute", "yoloop run now executes by default");
+      const roleValue = options.one("role");
+      if (roleValue) {
+        warn("yoloop run --role is deprecated; use yoloop adapter run --role instead");
+        const role = AgentRoleSchema.parse(roleValue);
+        runAdapter(root, adapter, role, options.flag("dry-run"));
         return;
       }
-      const role = AgentRoleSchema.parse(options.one("role") ?? "worker");
-      runAdapter(root, adapter, role, options.flag("execute"));
+      runUntilDone(root, { adapter, dryRun: options.flag("dry-run") });
+      return;
+    }
+    case "adapter": {
+      if (subcommand !== "run") {
+        fail("expected adapter run");
+      }
+      runAdapterCommand(root, rest);
       return;
     }
     case "task":
@@ -82,6 +107,18 @@ export function run(args: string[], root: string): void {
       }
       runCriticWriteVerdict(root, rest);
       return;
+    case "grand-jury":
+      if (subcommand !== "write-verdict") {
+        fail("expected grand-jury write-verdict");
+      }
+      runGrandJuryWriteVerdict(root, rest);
+      return;
+    case "log":
+      if (subcommand !== "append") {
+        fail("expected log append");
+      }
+      runLogAppend(root, rest);
+      return;
     case "hook":
       if (subcommand !== "pretooluse") {
         fail("expected hook pretooluse");
@@ -91,6 +128,11 @@ export function run(args: string[], root: string): void {
     default:
       fail(`unknown command ${command ?? ""}`.trim());
   }
+}
+
+function runContextRefresh(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  refreshContextManifest(root, options.one("actor") ?? "human");
 }
 
 function runTaskSetStatus(root: string, args: string[]): void {
@@ -111,6 +153,47 @@ function runCriticWriteVerdict(root: string, args: string[]): void {
     options.many("gap"),
     options.one("actor") ?? "critic",
   );
+}
+
+function runGrandJuryWriteVerdict(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  writeGrandJuryVerdict(
+    root,
+    parseVerdictDecision(options.required("verdict")),
+    options.required("summary"),
+    options.many("check"),
+    options.many("gap"),
+    options.one("actor") ?? "grand-jury",
+  );
+}
+
+function runAdapterCommand(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  warnDeprecatedFlag(options, "execute", "adapter run now executes by default");
+  const adapter = options.one("adapter") ?? "claude-code";
+  const role = AgentRoleSchema.parse(options.required("role"));
+  runAdapter(root, adapter, role, options.flag("dry-run"));
+}
+
+function runLogAppend(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  appendHumanLog(root, {
+    kind: parseHumanLogKind(options.required("kind")),
+    taskId: options.one("task-id"),
+    actor: options.one("actor") ?? "worker",
+    summary: options.required("summary"),
+    body: options.many("body").join("\n\n"),
+  });
+}
+
+function warnDeprecatedFlag(options: ParsedOptions, flag: string, replacement: string): void {
+  if (options.flag(flag)) {
+    warn(`--${flag} is deprecated; ${replacement}`);
+  }
+}
+
+function warn(message: string): void {
+  console.error(`warning: ${message}`);
 }
 
 function readStdin(): string {
