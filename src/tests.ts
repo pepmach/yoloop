@@ -5,6 +5,7 @@ import { join } from "path";
 import * as assert from "assert";
 import { init, doctor } from "./app";
 import { renderTemplate } from "./adapters";
+import { discoverCheckCommands } from "./checks";
 import { pretooluse } from "./hooks";
 import { readTasks } from "./io";
 import { run as runCli } from "./main";
@@ -72,6 +73,61 @@ test("context refresh writes raw manifest with hashes and media types", () => {
     assert.equal(manifest.files[0].mediaType, "application/json");
     assert.equal(manifest.files[1].mediaType, "text/markdown");
     doctor(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("check discovery reads package scripts without executing them", () => {
+  const root = tempRoot("check-discovery");
+  try {
+    init(root, "Test goal", true);
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify(
+        {
+          scripts: {
+            build: "node should-not-run.cjs",
+            lint: "eslint .",
+            test: "node should-not-run.cjs",
+            typecheck: "tsc --noEmit",
+            integration: "node should-not-run.cjs",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    writeFileSync(join(root, "package-lock.json"), "{}", "utf8");
+    writeFileSync(
+      join(root, "should-not-run.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'ran.txt'), 'bad')",
+      "utf8",
+    );
+
+    const discovered = discoverCheckCommands(root);
+    assert.deepEqual(
+      discovered.map((check) => check.command),
+      ["npm run build", "npm run lint", "npm test", "npm run typecheck", "npm run integration"],
+    );
+    doctor(root);
+    assert.equal(existsSync(join(root, "ran.txt")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("doctor rejects configured checks without command text", () => {
+  const root = tempRoot("configured-checks");
+  try {
+    init(root, "Test goal", true);
+    const policyPath = join(root, "LOOP_POLICY.json");
+    const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+    policy.checks = [{ name: "test", command: "", source: "user" }];
+    writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+
+    assert.throws(() => doctor(root), /parse LOOP_POLICY\.json/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

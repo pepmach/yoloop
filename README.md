@@ -37,7 +37,7 @@ yoloop adapter run --adapter claude-code --role worker --dry-run
 The generated harness files are:
 
 - `GOAL.md`: immutable human-owned goal and success criteria.
-- `LOOP_POLICY.json`: budgets, protected paths, and human approval gates.
+- `LOOP_POLICY.json`: budgets, protected paths, human approval gates, and configured check commands.
 - `ADAPTERS.json`: editable host adapter command templates.
 - `PLAN.md`: master implementation plan.
 - `TASKS.json`: structured task ledger.
@@ -82,6 +82,14 @@ While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes 
 `raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. `yoloop context refresh` writes `.yoloop/context-manifest.json` so fresh agent sessions can inspect available context without rediscovering the raw tree from scratch.
 
 The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.ts` are the source of truth for JSON artifacts; generated JSON Schema files can be added later if external tooling needs them.
+
+### Doctor Preflight
+
+`yoloop run` performs a cheap preflight before launching agents. This preflight validates required artifacts, parses JSON state, verifies the `GOAL.md` hash, refreshes `.yoloop/context-manifest.json`, discovers likely check commands by reading repo files, and validates configured check command strings.
+
+Normal preflight does not run real checks such as `npm test`, `npm run build`, lint, or typecheck. Those belong to critic execution or a future explicit command such as `yoloop checks run`.
+
+`yoloop doctor` reports configured and discovered check counts. Use `yoloop doctor --refresh-context` when you want doctor to refresh the raw context manifest too.
 
 `yoloop orchestrate` is the deterministic Orchestrator MVP. It reads `raw/`, accepts explicit objective/scope/success/non-goal/gate/task inputs, and writes the durable harness artifacts without launching workers.
 

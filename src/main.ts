@@ -25,9 +25,11 @@ export function run(args: string[], root: string): void {
     case "status":
       status(root);
       return;
-    case "doctor":
-      doctor(root);
+    case "doctor": {
+      const options = parseOptions([subcommand, ...rest].filter(Boolean));
+      doctor(root, { refreshContext: options.flag("refresh-context") });
       return;
+    }
     case "pause": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       setActive(root, false, options.one("actor") ?? "human");

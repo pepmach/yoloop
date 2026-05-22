@@ -54,6 +54,7 @@ export function defaultPolicy(): LoopPolicy {
         commandSubstrings: ["deploy", "migration"],
       },
     ],
+    checks: [],
   };
 }
 

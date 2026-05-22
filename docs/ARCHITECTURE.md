@@ -75,9 +75,11 @@ Optional HTML belongs later as generated reports or dashboards, not as primary r
 
 ## Doctor And Context Preflight
 
-`yoloop doctor` should run as preflight before each loop start. It should validate configured checks and detect package manager, build, lint, typecheck, test, and integration commands when user-provided instructions are absent.
+`yoloop run` performs a cheap doctor-style preflight before launching agents. It validates required artifacts, parses JSON state, verifies the `GOAL.md` hash, refreshes `.yoloop/context-manifest.json`, discovers likely check commands by reading repo files, and validates configured check command strings.
 
-User-specified check instructions win over auto-detection. Preflight should not silently rewrite policy during `run`; detected checks should be accepted through the wizard or an explicit command.
+Normal preflight must stay cheap. It must not run real checks such as build, test, lint, or typecheck. Those belong to critic execution or a future explicit command such as `yoloop checks run`.
+
+User-specified check instructions win over auto-detection. Preflight does not silently rewrite policy during `run`; detected checks should be accepted through the wizard or an explicit command.
 
 `raw/` is indexed into `.yoloop/context-manifest.json` by `yoloop context refresh`, `yoloop init`, `yoloop orchestrate`, and non-dry-run `yoloop run`. The manifest includes paths, byte sizes, SHA-256 hashes, and media types. Summaries can come later.
 

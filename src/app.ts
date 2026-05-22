@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
+import { discoverCheckCommands } from "./checks";
 import { fail } from "./errors";
 import { readContextManifest, refreshContextManifest } from "./context";
 import { readLatestGrandJuryVerdict } from "./grandJury";
@@ -49,6 +50,11 @@ import {
   goalMarkdown,
 } from "./templates";
 import { nextClaimableTask } from "./tasks";
+
+export type DoctorOptions = {
+  quiet?: boolean;
+  refreshContext?: boolean;
+};
 
 export function init(root: string, goal: string | undefined, force: boolean): void {
   ensureDir(join(root, YOLOOP_DIR));
@@ -138,7 +144,10 @@ export function status(root: string): void {
   }
 }
 
-export function doctor(root: string): void {
+export function doctor(root: string, options: DoctorOptions = {}): void {
+  if (options.refreshContext) {
+    refreshContextManifest(root, "doctor", true);
+  }
   const requiredFiles = [
     GOAL_PATH,
     GOAL_HASH_PATH,
@@ -170,14 +179,23 @@ export function doctor(root: string): void {
     }
   }
 
-  readPolicy(root);
+  const policy = readPolicy(root);
   readTasks(root);
   readAdapters(root);
   readContextManifest(root);
   goalIntegrity(root);
+  const discoveredChecks = discoverCheckCommands(root);
 
-  console.log("doctor: ok");
-  console.log(`raw context files: ${rawContextFileCount(root)}`);
+  if (!options.quiet) {
+    console.log("doctor: ok");
+    console.log(`raw context files: ${rawContextFileCount(root)}`);
+    console.log(`configured checks: ${policy.checks.length}`);
+    console.log(`discovered checks: ${discoveredChecks.length}`);
+  }
+}
+
+export function preflight(root: string): void {
+  doctor(root, { quiet: true, refreshContext: true });
 }
 
 export function setActive(root: string, active: boolean, actor: string): void {

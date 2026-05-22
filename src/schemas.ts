@@ -39,6 +39,15 @@ export type VerdictDecision = z.infer<typeof VerdictDecisionSchema>;
 export const CheckStatusSchema = z.enum(["passed", "failed", "skipped"]);
 export type CheckStatus = z.infer<typeof CheckStatusSchema>;
 
+export const CheckCommandSchema = z
+  .object({
+    name: z.string().min(1),
+    command: z.string().min(1),
+    source: z.string().min(1),
+  })
+  .strict();
+export type CheckCommand = z.infer<typeof CheckCommandSchema>;
+
 export const HumanGateSchema = z
   .object({
     id: z.string(),
@@ -60,6 +69,7 @@ export const LoopPolicySchema = z
     allowedWriteRoots: z.array(z.string()),
     denyShellSubstrings: z.array(z.string()),
     humanGates: z.array(HumanGateSchema),
+    checks: z.array(CheckCommandSchema),
   })
   .strict();
 export type LoopPolicy = z.infer<typeof LoopPolicySchema>;

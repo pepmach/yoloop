@@ -1,5 +1,5 @@
 import { fail } from "./errors";
-import { refreshContextManifest } from "./context";
+import { preflight } from "./app";
 import { ensureGrandJuryApproved } from "./grandJury";
 import { appendEvent, goalIntegrity, nowIso, readPolicy, readTasks } from "./io";
 import { resolveAdapterCommand, runAdapter } from "./adapters";
@@ -24,7 +24,7 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
     return;
   }
 
-  refreshContextManifest(root, "yoloop-runner", true);
+  preflight(root);
   appendEvent(root, {
     timestamp: nowIso(),
     kind: "loop.started",
