@@ -4,40 +4,6 @@ Yoloop is a local-first harness for long-running coding agents. It is designed f
 
 The current repo is a TypeScript-first MVP control plane. It is not published to npm yet and installability is still in progress. Today it creates Markdown runtime artifacts, validates JSON/JSONL state with Zod, runs a sequential worker-critic-grand-jury loop through host adapters, and protects core files through a `PreToolUse` hook command.
 
-## Current Status
-
-Implemented baseline:
-
-- Markdown runtime artifacts: `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`.
-- Machine state: `TASKS.json`, `LOOP_POLICY.json`, `ADAPTERS.json`, `.yoloop/events.jsonl`, `.yoloop/human-log.jsonl`, `.yoloop/context-manifest.json`, critic verdicts, and grand jury verdicts.
-- `raw/` context ingestion through a manifest refresh.
-- Sequential `yoloop run` with fresh worker, critic, and grand jury adapter invocations.
-- Critic verdict enforcement before task completion.
-- Grand jury verdict enforcement before `<yoloop-done>`.
-- Cheap doctor preflight plus explicit `doctor --verify-checks`.
-- Claude Code plugin scaffold that delegates to the `yoloop` CLI.
-
-Not implemented yet:
-
-- npm publication.
-- `yoloop install claude|codex|auto`.
-- Interactive orchestrator wizard.
-- Decomposition critic gate.
-- Repair worker loop after critic rejection.
-- Decision queue and terminal run reports.
-- Cursor/OpenCode integrations.
-
-## Develop From Source
-
-```powershell
-npm install
-npm run build
-npm test
-node dist/cli.js doctor
-```
-
-The package declares a `yoloop` binary at `dist/cli.js`. Until npm publication and install commands exist, use `node dist/cli.js ...` from this repo or link the package locally during development.
-
 ## Quick Start
 
 The current MVP has a deterministic orchestrator, not a chat wizard. Pass the objective and task slices explicitly, then preview and run the adapter loop.
