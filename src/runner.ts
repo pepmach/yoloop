@@ -26,7 +26,7 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
   }
 
   preflight(root);
-  ensureDecompositionApproved(root);
+  ensureDecompositionReady(root, options.adapter);
   appendEvent(root, {
     timestamp: nowIso(),
     kind: "loop.started",
@@ -87,6 +87,11 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
 function dryRunSequentialLoop(root: string, adapterId: string): void {
   const policy = readPolicy(root);
   const ledger = readTasks(root);
+  if (!decompositionApproved(root)) {
+    const decompositionCritic = resolveAdapterCommand(root, adapterId, "decomposition-critic");
+    console.log("dry run: decomposition critic would run before workers");
+    console.log(`dry run decomposition critic: ${decompositionCritic.renderedCommand}`);
+  }
   if (allRunnableTasksCompleted(ledger.tasks)) {
     const grandJury = resolveAdapterCommand(root, adapterId, "grand-jury");
     console.log(`dry run: all runnable tasks are completed; grand jury would run next`);
@@ -107,6 +112,24 @@ function dryRunSequentialLoop(root: string, adapterId: string): void {
   console.log(`dry run critic: ${critic.renderedCommand}`);
   console.log(`dry run grand jury after all tasks complete: ${grandJury.renderedCommand}`);
   console.log("dry run only; run without --dry-run to execute");
+}
+
+function ensureDecompositionReady(root: string, adapterId: string): void {
+  if (decompositionApproved(root)) {
+    return;
+  }
+  console.log("decomposition critic reviewing task ledger");
+  runAdapter(root, adapterId, "decomposition-critic", false);
+  ensureDecompositionApproved(root);
+}
+
+function decompositionApproved(root: string): boolean {
+  try {
+    ensureDecompositionApproved(root);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function runGrandJuryAndFinish(root: string, adapterId: string, iteration: number): void {

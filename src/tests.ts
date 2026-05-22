@@ -492,6 +492,7 @@ test("sequential runner executes worker critic pairs until done", () => {
               id: "mock",
               label: "Mock Agent",
               command: process.execPath,
+              decompositionArgs: [join(root, "mock-agent.cjs"), "decomposition-critic"],
               workerArgs: [join(root, "mock-agent.cjs"), "worker"],
               criticArgs: [join(root, "mock-agent.cjs"), "critic"],
               grandJuryArgs: [join(root, "mock-agent.cjs"), "grand-jury"],
@@ -506,11 +507,11 @@ test("sequential runner executes worker critic pairs until done", () => {
 
     runUntilDone(root, { adapter: "mock", dryRun: true });
     assert.equal(readTasks(root).tasks[0].status, "pending");
-    approveDecomposition(root);
     runUntilDone(root, { adapter: "mock", dryRun: false });
     const tasks = readTasks(root).tasks;
     assert.equal(tasks[0].status, "completed");
     assert.equal(tasks[1].status, "completed");
+    assert.ok(existsSync(join(root, ".yoloop", "decomposition-verdicts", "decomposition.latest.json")));
     assert.ok(existsSync(join(root, ".yoloop", "grand-jury-verdicts", "final.latest.json")));
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -542,7 +543,6 @@ test("cli run executes by default and dry-run previews", () => {
     const postDryRunManifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
     assert.equal(postDryRunManifest.files.length, 0);
     assert.equal(readTasks(root).tasks[0].status, "pending");
-    approveDecomposition(root);
     runCli(["run", "--adapter", "mock"], root);
     const postRunManifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
     assert.deepEqual(postRunManifest.files.map((file: { path: string }) => file.path), ["raw/late.txt"]);
@@ -568,7 +568,6 @@ test("grand jury rejection blocks loop completion", () => {
     });
     writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript("rejected"), "utf8");
     writeMockAdapter(root);
-    approveDecomposition(root);
 
     assert.throws(() => runCli(["run", "--adapter", "mock"], root), /grand jury verdict is rejected/);
     assert.equal(readTasks(root).tasks[0].status, "completed");
@@ -598,8 +597,8 @@ test("grand jury verdict requires all runnable tasks completed", () => {
   }
 });
 
-test("run refuses worker execution without approved decomposition verdict", () => {
-  const root = tempRoot("decomposition-required");
+test("run launches decomposition critic before worker execution", () => {
+  const root = tempRoot("decomposition-auto");
   try {
     init(root, "Loop goal", true);
     orchestrate(root, {
@@ -614,8 +613,10 @@ test("run refuses worker execution without approved decomposition verdict", () =
     writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
     writeMockAdapter(root);
 
-    assert.throws(() => runCli(["run", "--adapter", "mock"], root), /approved decomposition verdict/);
-    assert.equal(readTasks(root).tasks[0].status, "pending");
+    runCli(["run", "--adapter", "mock"], root);
+
+    assert.equal(readTasks(root).tasks[0].status, "completed");
+    assert.ok(existsSync(join(root, ".yoloop", "decomposition-verdicts", "decomposition.latest.json")));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -650,7 +651,6 @@ test("cli accepts deprecated run flags with warnings", () => {
     });
     writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
     writeMockAdapter(root);
-    approveDecomposition(root);
 
     const warnings = captureConsoleError(() => {
       runCli(["run", "--adapter", "mock", "--until-done", "--execute"], root);
@@ -716,6 +716,28 @@ if (role === "worker") {
   task.attempts += 1;
   task.updatedAt = now;
   fs.writeFileSync(tasksPath, JSON.stringify(ledger, null, 2) + "\\n");
+  process.exit(0);
+}
+
+if (role === "decomposition-critic") {
+  const dir = path.join(root, ".yoloop", "decomposition-verdicts");
+  fs.mkdirSync(dir, { recursive: true });
+  const hash = (relativePath) =>
+    require("crypto").createHash("sha256").update(fs.readFileSync(path.join(root, relativePath))).digest("hex");
+  const verdict = {
+    schemaVersion: 1,
+    verdict: "approved",
+    summary: "mock decomposition approved",
+    checks: [{ name: "task-contract", status: "passed", evidence: "mock inspected tasks" }],
+    gaps: [],
+    goalSha256: hash("GOAL.md"),
+    planSha256: hash("PLAN.md"),
+    policySha256: hash("LOOP_POLICY.json"),
+    tasksSha256: hash("TASKS.json"),
+    createdAt: now
+  };
+  fs.writeFileSync(path.join(dir, "decomposition.latest.json"), JSON.stringify(verdict, null, 2) + "\\n");
+  fs.writeFileSync(path.join(root, "DECOMPOSITION_REVIEW.md"), "# Decomposition Review\\n\\nStatus: approved\\n");
   process.exit(0);
 }
 
@@ -798,6 +820,7 @@ function writeMockAdapter(root: string): void {
             id: "mock",
             label: "Mock Agent",
             command: process.execPath,
+            decompositionArgs: [join(root, "mock-agent.cjs"), "decomposition-critic"],
             workerArgs: [join(root, "mock-agent.cjs"), "worker"],
             criticArgs: [join(root, "mock-agent.cjs"), "critic"],
             grandJuryArgs: [join(root, "mock-agent.cjs"), "grand-jury"],
@@ -809,19 +832,6 @@ function writeMockAdapter(root: string): void {
     )}\n`,
     "utf8",
   );
-}
-
-function approveDecomposition(root: string): void {
-  runCli([
-    "decomposition",
-    "write-verdict",
-    "--verdict",
-    "approved",
-    "--summary",
-    "Task ledger is executable.",
-    "--check",
-    "task-contract=passed:tasks have concrete criteria",
-  ], root);
 }
 
 function shellQuote(value: string): string {

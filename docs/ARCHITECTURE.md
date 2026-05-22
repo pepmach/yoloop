@@ -34,9 +34,9 @@ It should verify:
 - risky work has human approval gates;
 - the task plan respects non-goals, raw context, and policy.
 
-The current CLI supports this gate with `yoloop decomposition write-verdict`. It writes a structured verdict under `.yoloop/decomposition-verdicts/` and renders `DECOMPOSITION_REVIEW.md`. `yoloop run` refuses to start workers unless the latest decomposition verdict is approved for the current goal, plan, policy, and task ledger hashes.
+The current CLI supports this gate with `yoloop decomposition write-verdict`. It writes a structured verdict under `.yoloop/decomposition-verdicts/` and renders `DECOMPOSITION_REVIEW.md`. `yoloop run` automatically launches the configured `decomposition-critic` adapter when the latest verdict is missing or stale, then refuses to start workers unless the resulting verdict is approved for the current goal, plan, policy, and task ledger hashes.
 
-The remaining work is to add an actual decomposition-critic adapter role and stronger static checks for task size, dependency validity, ownership paths, and non-goal violations.
+The remaining work is stronger static checks for task size, dependency validity, ownership paths, and non-goal violations.
 
 ## State Model
 
@@ -120,7 +120,7 @@ The canonical state should live in `.yoloop/decision-queue.json`, with a Markdow
 
 ## Sequential Runner
 
-`yoloop run` runs the conservative sequential loop. Before launching workers, it runs cheap preflight and requires an approved, current decomposition verdict. It then launches one fresh worker adapter for the next claimable task, requires the worker to hand off through `critic_review`, launches one fresh critic adapter, then completes the task only after an approved critic verdict.
+`yoloop run` runs the conservative sequential loop. Before launching workers, it runs cheap preflight, launches a fresh decomposition critic if needed, and requires an approved, current decomposition verdict. It then launches one fresh worker adapter for the next claimable task, requires the worker to hand off through `critic_review`, launches one fresh critic adapter, then completes the task only after an approved critic verdict.
 
 Rejected verdicts should launch a fresh repair worker with the task, critic verdict, failure memory, decision log, and diff context. Retry budgets should eventually account for repeated failure signatures, not just raw attempt count.
 

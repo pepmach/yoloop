@@ -91,7 +91,9 @@ export function resolveAdapterCommand(
 
 export function renderAdapterArgs(adapter: AgentAdapter, role: AgentRole): string[] {
   const args =
-    role === "worker"
+    role === "decomposition-critic"
+      ? adapter.decompositionArgs
+      : role === "worker"
       ? adapter.workerArgs
       : role === "critic"
         ? adapter.criticArgs

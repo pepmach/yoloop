@@ -72,7 +72,13 @@ Review the generated files before launching agents:
 - `LOOP_POLICY.json`
 - `ADAPTERS.json`
 
-Approve the decomposition before launching workers. In the current MVP this can be written manually or by a decomposition-critic agent:
+Preview the run. If the decomposition verdict is missing or stale, dry-run shows the decomposition critic command that will run before workers:
+
+```powershell
+yoloop run --dry-run
+```
+
+You can also approve or reject the decomposition manually:
 
 ```powershell
 yoloop decomposition write-verdict `
@@ -82,12 +88,6 @@ yoloop decomposition write-verdict `
 ```
 
 Make sure the selected adapter command exists on your machine. The default `claude-code` adapter expects `claude`; the default `codex-cli` adapter expects `codex`.
-
-Preview the next agent action:
-
-```powershell
-yoloop run --dry-run
-```
 
 Run the sequential loop with the default Claude Code adapter template:
 
@@ -119,7 +119,7 @@ Normal commands are short. Role-specific diagnostics are nested under `adapter r
 | `yoloop decomposition write-verdict` | Approve, reject, or escalate the generated task decomposition before workers can start. |
 | `yoloop run` | Execute the sequential worker-critic-grand-jury loop. |
 | `yoloop run --dry-run` | Preview the next loop action without launching agents or mutating task state. |
-| `yoloop adapter run --role worker\|critic\|grand-jury` | Test one adapter role directly. |
+| `yoloop adapter run --role decomposition-critic\|worker\|critic\|grand-jury` | Test one adapter role directly. |
 | `yoloop claim-next` | Manually claim the next task. Mostly useful for testing and manual harness operation. |
 | `yoloop task set-status` | Manually transition a task status. `completed` requires an approved critic verdict. |
 | `yoloop log append` | Append curated progress, failure, or decision entries. |
@@ -231,7 +231,7 @@ Discovery reads files only. It detects package managers such as `npm`, `pnpm`, `
 - `checks`
 - `gates`
 
-Before `yoloop run` launches workers, the current `GOAL.md`, `PLAN.md`, `LOOP_POLICY.json`, and `TASKS.json` must have an approved decomposition verdict under `.yoloop/decomposition-verdicts/`. If any of those artifacts change, the verdict becomes stale and workers will not start until a new verdict is written.
+Before workers launch, the current `GOAL.md`, `PLAN.md`, `LOOP_POLICY.json`, and `TASKS.json` must have an approved decomposition verdict under `.yoloop/decomposition-verdicts/`. If any of those artifacts change, the verdict becomes stale. `yoloop run` automatically launches the configured `decomposition-critic` adapter when the verdict is missing or stale, then proceeds only if the resulting verdict is approved.
 
 ## Host Plugins And Adapters
 

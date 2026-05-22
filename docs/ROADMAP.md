@@ -85,7 +85,7 @@ Status: context manifest, typed check discovery, merged policy check selection, 
 
 ## v0.7: Decomposition Critic
 
-Status: schema, verdict writer, review render, artifact hashes, and `run` gate implemented; automated decomposition-critic adapter remains.
+Status: schema, verdict writer, review render, artifact hashes, automatic decomposition-critic adapter invocation, and `run` gate implemented; stronger static decomposition checks remain.
 
 - Add a blocking decomposition review stage after orchestration and before workers.
 - Write structured verdicts under `.yoloop/decomposition-verdicts/`.

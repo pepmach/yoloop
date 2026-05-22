@@ -67,6 +67,10 @@ export function defaultAdapters(): AdapterCatalog {
         id: "claude-code",
         label: "Claude Code",
         command: "claude",
+        decompositionArgs: [
+          "-p",
+          "Read {{goal}}, {{plan}}, {{policy}}, {{tasks}}, and {{context_manifest}}. Review whether the task ledger is executable: milestones, success criteria, dependencies, allowed paths, risk, checks, gates, non-goals, and raw context. Write the verdict with yoloop decomposition write-verdict.",
+        ],
         workerArgs: [
           "-p",
           `Read {{worker_prompt}} first, inspect {{context_manifest}} and ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,
@@ -84,6 +88,10 @@ export function defaultAdapters(): AdapterCatalog {
         id: "codex-cli",
         label: "Codex CLI",
         command: "codex",
+        decompositionArgs: [
+          "exec",
+          "Read {{goal}}, {{plan}}, {{policy}}, {{tasks}}, and {{context_manifest}}. Review whether the task ledger is executable: milestones, success criteria, dependencies, allowed paths, risk, checks, gates, non-goals, and raw context. Write the verdict with yoloop decomposition write-verdict.",
+        ],
         workerArgs: [
           "exec",
           `Read {{worker_prompt}} first, inspect {{context_manifest}} and ${RAW_DIR}/ for extra context, then claim and execute exactly one pending task from {{tasks}}. Treat {{goal}}, {{policy}}, and {{plan}} as authoritative.`,

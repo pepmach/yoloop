@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const AgentRoleSchema = z.enum(["worker", "critic", "grand-jury"]);
+export const AgentRoleSchema = z.enum(["decomposition-critic", "worker", "critic", "grand-jury"]);
 export type AgentRole = z.infer<typeof AgentRoleSchema>;
 
 export const HumanLogKindSchema = z.enum(["progress", "failure", "decision"]);
@@ -87,6 +87,7 @@ export const AgentAdapterSchema = z
     id: z.string(),
     label: z.string(),
     command: z.string(),
+    decompositionArgs: z.array(z.string()),
     workerArgs: z.array(z.string()),
     criticArgs: z.array(z.string()),
     grandJuryArgs: z.array(z.string()),
