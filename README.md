@@ -12,22 +12,34 @@ The current MVP has a deterministic orchestrator, not a chat wizard. Pass the ob
 npm run build
 ```
 
+For local development, put the built CLI on `PATH`:
+
+```powershell
+npm install -g .
+```
+
+Print host-specific plugin setup instructions:
+
+```powershell
+yoloop install auto
+```
+
 Create the harness files:
 
 ```powershell
-node dist/cli.js init --goal "Build the feature described by the product spec."
+yoloop init --goal "Build the feature described by the product spec."
 ```
 
 Add any long-form product notes, repo context, references, or investigation notes under `raw/`, then refresh the manifest:
 
 ```powershell
-node dist/cli.js context refresh
+yoloop context refresh
 ```
 
 Generate the goal, plan, prompts, policy, and task ledger:
 
 ```powershell
-node dist/cli.js orchestrate `
+yoloop orchestrate `
   --objective "Build the feature described by the product spec." `
   --scope "Implement the feature in this repository." `
   --success "The feature is implemented and critic-approved." `
@@ -42,14 +54,14 @@ node dist/cli.js orchestrate `
 Validate harness state without running build/test/lint/typecheck:
 
 ```powershell
-node dist/cli.js doctor --refresh-context
-node dist/cli.js status
+yoloop doctor --refresh-context
+yoloop status
 ```
 
 Optionally run the selected check plan. Yoloop merges user-configured checks from `LOOP_POLICY.json` with discovered checks, with user entries overriding discovered entries that share the same `kind:name`:
 
 ```powershell
-node dist/cli.js doctor --verify-checks
+yoloop doctor --verify-checks
 ```
 
 Review the generated files before launching agents:
@@ -65,20 +77,20 @@ Make sure the selected adapter command exists on your machine. The default `clau
 Preview the next agent action:
 
 ```powershell
-node dist/cli.js run --dry-run
+yoloop run --dry-run
 ```
 
 Run the sequential loop with the default Claude Code adapter template:
 
 ```powershell
-node dist/cli.js run --adapter claude-code
+yoloop run --adapter claude-code
 ```
 
 Or test one adapter role directly:
 
 ```powershell
-node dist/cli.js adapter run --adapter claude-code --role worker --dry-run
-node dist/cli.js adapter run --adapter codex-cli --role critic --dry-run
+yoloop adapter run --adapter claude-code --role worker --dry-run
+yoloop adapter run --adapter codex-cli --role critic --dry-run
 ```
 
 ## Command Reference
@@ -88,6 +100,7 @@ Normal commands are short. Role-specific diagnostics are nested under `adapter r
 | Command | Purpose |
 |---|---|
 | `yoloop init` | Create the harness artifacts. |
+| `yoloop install claude\|codex\|auto` | Validate packaged plugin surfaces and print host-specific setup instructions. |
 | `yoloop context refresh` | Refresh `.yoloop/context-manifest.json` from `raw/`. |
 | `yoloop doctor` | Run cheap validation only. |
 | `yoloop doctor --refresh-context` | Run cheap validation and refresh the raw context manifest. |
@@ -194,20 +207,43 @@ Check selection is:
 
 Discovery reads files only. It detects package managers such as `npm`, `pnpm`, `yarn`, `bun`, `cargo`, `python`, and `go`, but it does not spawn package managers during normal preflight.
 
-## Host Adapters
+## Host Plugins And Adapters
 
 Yoloop is host-neutral. `ADAPTERS.json` contains command templates for agent hosts. The default catalog includes:
 
 - `claude-code`
 - `codex-cli`
 
-The `plugins/yoloop` directory is the first Claude Code plugin scaffold. It assumes the `yoloop` binary is on `PATH` and delegates hook decisions to:
+The `plugins/yoloop` directory is intentionally thin and host-facing. It assumes the `yoloop` binary is on `PATH` and delegates runtime state to the TypeScript CLI.
+
+Packaged host surfaces:
+
+- Claude Code marketplace: `.claude-plugin/marketplace.json`
+- Claude Code plugin: `plugins/yoloop/.claude-plugin/plugin.json`
+- Codex marketplace: `.agents/plugins/marketplace.json`
+- Codex plugin: `plugins/yoloop/.codex-plugin/plugin.json`
+- Codex skill: `plugins/yoloop/skills/using-yoloop/SKILL.md`
+
+After Yoloop is available on GitHub, Claude Code can install the marketplace with:
+
+```powershell
+claude plugin marketplace add pepmach/yoloop
+claude plugin install yoloop@yoloop
+```
+
+Codex can load the bundled marketplace/plugin through its plugin marketplace flow. Run this to print the current instructions:
+
+```powershell
+yoloop install codex
+```
+
+The Claude Code hook delegates policy decisions to:
 
 ```powershell
 yoloop hook pretooluse
 ```
 
-Codex support currently exists as an adapter template, not as a fully installable Codex plugin. Future work should add `yoloop install claude|codex|auto`, npm publication prep, and clear verification commands. Cursor and OpenCode are future integration targets.
+The install command currently prints instructions and validates packaged artifacts; it does not mutate `~/.claude`, `~/.codex`, or user-level plugin marketplace files. Cursor and OpenCode are future integration targets.
 
 ## Goal Update Flow
 

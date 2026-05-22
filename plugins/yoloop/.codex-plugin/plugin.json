@@ -1,0 +1,38 @@
+{
+  "name": "yoloop",
+  "version": "0.1.0",
+  "description": "A local-first sequential agent-loop harness for Codex and Claude Code.",
+  "author": {
+    "name": "pepmach",
+    "url": "https://github.com/pepmach"
+  },
+  "homepage": "https://github.com/pepmach/yoloop",
+  "repository": "https://github.com/pepmach/yoloop",
+  "license": "MIT",
+  "keywords": [
+    "agent-loop",
+    "coding-agents",
+    "orchestrator",
+    "critic",
+    "harness",
+    "sdlc"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Yoloop",
+    "shortDescription": "Run durable worker-critic coding loops from Codex",
+    "longDescription": "Use Yoloop to initialize durable goal, plan, task, policy, context, log, and verdict artifacts, then run a sequential worker-critic-grand-jury loop through local agent adapters.",
+    "developerName": "pepmach",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Set up Yoloop for this repo.",
+      "Run this feature through Yoloop."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

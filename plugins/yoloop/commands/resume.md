@@ -1,3 +1,9 @@
+---
+description: Resume Yoloop policy enforcement
+argument-hint: ""
+allowed-tools: Bash(yoloop:*)
+---
+
 Resume Yoloop policy enforcement.
 
 Use Bash to run:

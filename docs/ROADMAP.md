@@ -55,10 +55,14 @@ Status: implemented baseline.
 
 ## v0.5: Installability And Host Setup
 
+Status: packaged marketplace/plugin surfaces and `yoloop install` instruction printer implemented; npm publication and host config mutation remain.
+
 - Verify npm package name availability for `yoloop`.
 - If unavailable, prepare scoped publication such as `@pepmach/yoloop`.
 - Add release/package metadata needed for npm publication.
 - Add `yoloop install claude|codex|auto`.
+- Package a Claude Code marketplace and plugin surface.
+- Package a Codex marketplace, plugin manifest, and `using-yoloop` skill.
 - Install or link the Claude Code plugin surface and verify hooks.
 - Install or link the Codex skill/plugin surface where supported.
 - Document manual fallback paths.

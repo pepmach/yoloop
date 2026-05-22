@@ -5,6 +5,7 @@ import { refreshContextManifest } from "./context";
 import { fail } from "./errors";
 import { writeGrandJuryVerdict } from "./grandJury";
 import { printHookDecision, pretooluse } from "./hooks";
+import { printInstallInstructions } from "./install";
 import { goalIntegrity } from "./io";
 import { appendHumanLog, parseHumanLogKind } from "./logs";
 import { orchestrate } from "./orchestrator";
@@ -33,6 +34,9 @@ export function run(args: string[], root: string): void {
       });
       return;
     }
+    case "install":
+      runInstallCommand([subcommand, ...rest].filter(Boolean));
+      return;
     case "pause": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
       setActive(root, false, options.one("actor") ?? "human");
@@ -133,6 +137,16 @@ export function run(args: string[], root: string): void {
 function runContextRefresh(root: string, args: string[]): void {
   const options = parseOptions(args);
   refreshContextManifest(root, options.one("actor") ?? "human");
+}
+
+function runInstallCommand(args: string[]): void {
+  const positional = args.filter((arg) => !arg.startsWith("--"));
+  if (positional.length > 1) {
+    fail("expected at most one install target");
+  }
+  const optionArgs = args.filter((arg) => arg.startsWith("--"));
+  const options = parseOptions(optionArgs);
+  printInstallInstructions(options.one("target") ?? positional[0] ?? "auto");
 }
 
 function runTaskSetStatus(root: string, args: string[]): void {

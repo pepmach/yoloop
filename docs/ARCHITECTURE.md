@@ -91,7 +91,16 @@ User-specified check instructions live in `LOOP_POLICY.json.checks` and are merg
 
 The default catalog includes `claude-code` and `codex-cli`. These are adapter templates, not separate implementations. The TypeScript core owns task state, policy state, event logging, and artifact paths.
 
-Installability is not complete. The project should add `yoloop install claude|codex|auto`, npm publication prep, Claude Code plugin setup, Codex skill/plugin setup, and verification commands. Cursor and OpenCode are future integration targets.
+Installability has a packaged baseline:
+
+- `.claude-plugin/marketplace.json` exposes the repo as a Claude Code marketplace.
+- `plugins/yoloop/.claude-plugin/plugin.json` exposes Claude Code slash commands and hooks.
+- `.agents/plugins/marketplace.json` exposes the repo as a Codex marketplace.
+- `plugins/yoloop/.codex-plugin/plugin.json` exposes the Codex plugin bundle.
+- `plugins/yoloop/skills/using-yoloop/SKILL.md` gives Codex reusable Yoloop operating rules.
+- `yoloop install claude|codex|auto` validates the packaged surfaces and prints setup instructions without mutating host config.
+
+Remaining installability work is npm publication prep, host-specific install/link verification, optional user-level marketplace mutation behind explicit approval, and better doctor checks. Cursor and OpenCode are future integration targets.
 
 ## Verdicts
 

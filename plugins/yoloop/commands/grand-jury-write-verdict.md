@@ -1,3 +1,9 @@
+---
+description: Write the final Yoloop grand jury verdict
+argument-hint: "--verdict approved|rejected|human-approval-required --summary TEXT --check name=status:evidence [--gap TEXT]"
+allowed-tools: Bash(yoloop:*)
+---
+
 Write the final Yoloop grand jury verdict after all runnable tasks are completed.
 
 Use Bash to run:

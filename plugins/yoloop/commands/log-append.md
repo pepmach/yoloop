@@ -1,3 +1,9 @@
+---
+description: Append a curated Yoloop human log entry
+argument-hint: "--kind progress|failure|decision --summary TEXT [--task-id ID] [--body TEXT]"
+allowed-tools: Bash(yoloop:*)
+---
+
 Append a curated human-readable entry to a Yoloop log file.
 
 Use Bash to run:

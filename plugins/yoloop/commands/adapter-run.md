@@ -1,3 +1,9 @@
+---
+description: Run or preview one Yoloop adapter role
+argument-hint: "--role worker|critic|grand-jury [--adapter NAME] [--dry-run]"
+allowed-tools: Bash(yoloop:*)
+---
+
 Run or preview one configured Yoloop adapter role in the current project.
 
 Use Bash to run:

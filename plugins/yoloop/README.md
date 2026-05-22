@@ -1,10 +1,17 @@
-# Yoloop Claude Code Plugin
+# Yoloop Host Plugin
 
 This plugin is intentionally thin. It delegates policy checks and project state to the `yoloop` CLI.
 
 Install or load this plugin only after the `yoloop` binary is available on `PATH`.
 
-Commands:
+Packaged host surfaces:
+
+- Claude Code: `.claude-plugin/plugin.json`, `commands/`, and `hooks/hooks.json`.
+- Codex: `.codex-plugin/plugin.json` and `skills/using-yoloop/SKILL.md`.
+
+Run `yoloop install auto` from the npm package or source checkout to print host-specific setup instructions.
+
+Claude Code commands:
 
 - `/yoloop:init`
 - `/yoloop:status`
@@ -24,3 +31,7 @@ Commands:
 Hooks:
 
 - `PreToolUse` calls `yoloop hook pretooluse` to enforce `LOOP_POLICY.json`.
+
+Codex skill:
+
+- `using-yoloop` teaches Codex to run `yoloop doctor`, refresh `raw/` context, preview with `yoloop run --dry-run`, append curated human logs, and avoid direct edits to protected Yoloop artifacts.

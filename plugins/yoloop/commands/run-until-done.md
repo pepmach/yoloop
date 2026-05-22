@@ -1,3 +1,9 @@
+---
+description: Deprecated compatibility command for old Yoloop run UX
+argument-hint: "[--adapter NAME] [--dry-run]"
+allowed-tools: Bash(yoloop:*)
+---
+
 Deprecated compatibility command for the old Yoloop sequential loop UX.
 
 Use Bash to run:

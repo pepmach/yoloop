@@ -1,0 +1,21 @@
+{
+  "name": "yoloop",
+  "metadata": {
+    "description": "Yoloop harness plugins for Claude Code."
+  },
+  "owner": {
+    "name": "pepmach"
+  },
+  "plugins": [
+    {
+      "name": "yoloop",
+      "description": "Thin Claude Code wrapper for the Yoloop sequential agent-loop harness.",
+      "author": {
+        "name": "pepmach"
+      },
+      "source": "./plugins/yoloop",
+      "category": "development",
+      "homepage": "https://github.com/pepmach/yoloop"
+    }
+  ]
+}

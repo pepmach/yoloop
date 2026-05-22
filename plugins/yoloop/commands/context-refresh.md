@@ -1,3 +1,9 @@
+---
+description: Refresh the Yoloop raw context manifest
+argument-hint: ""
+allowed-tools: Bash(yoloop:*)
+---
+
 Refresh the Yoloop raw context manifest.
 
 Use Bash to run:

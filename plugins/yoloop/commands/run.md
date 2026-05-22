@@ -1,3 +1,9 @@
+---
+description: Run the Yoloop sequential worker-critic loop
+argument-hint: "[--adapter NAME] [--dry-run]"
+allowed-tools: Bash(yoloop:*)
+---
+
 Run the Yoloop sequential worker-critic loop in the current project.
 
 Use Bash to run:

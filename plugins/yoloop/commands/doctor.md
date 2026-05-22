@@ -1,3 +1,9 @@
+---
+description: Check Yoloop harness invariants
+argument-hint: "[--refresh-context] [--verify-checks]"
+allowed-tools: Bash(yoloop:*)
+---
+
 Check the Yoloop harness invariants.
 
 Use Bash to run:

@@ -12,6 +12,8 @@
     "!dist/tests.js",
     "docs",
     "plugins",
+    ".agents",
+    ".claude-plugin",
     "README.md",
     "LICENSE"
   ],

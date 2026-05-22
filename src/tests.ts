@@ -644,6 +644,18 @@ test("cli accepts deprecated run role alias with warning", () => {
   }
 });
 
+test("install command prints Claude and Codex plugin instructions", () => {
+  const output = captureConsoleLog(() => {
+    runCli(["install", "auto"], process.cwd());
+  });
+
+  assert.ok(output.some((message) => message.includes("Claude Code")));
+  assert.ok(output.some((message) => message.includes("claude plugin marketplace add")));
+  assert.ok(output.some((message) => message.includes("Codex")));
+  assert.ok(output.some((message) => message.includes(".codex-plugin/plugin.json")));
+  assert.ok(output.some((message) => message.includes(".agents/plugins/marketplace.json")));
+});
+
 function mockAgentScript(grandJuryVerdict = "approved"): string {
   return `
 const fs = require("fs");
@@ -721,6 +733,20 @@ function captureConsoleError(fn: () => void): string[] {
     fn();
   } finally {
     console.error = original;
+  }
+  return messages;
+}
+
+function captureConsoleLog(fn: () => void): string[] {
+  const original = console.log;
+  const messages: string[] = [];
+  console.log = (...args: unknown[]): void => {
+    messages.push(args.map(String).join(" "));
+  };
+  try {
+    fn();
+  } finally {
+    console.log = original;
   }
   return messages;
 }

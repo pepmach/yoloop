@@ -1,3 +1,9 @@
+---
+description: Initialize Yoloop in the current project
+argument-hint: "GOAL"
+allowed-tools: Bash(yoloop:*)
+---
+
 Run the Yoloop initializer in the current project.
 
 Use Bash to run:

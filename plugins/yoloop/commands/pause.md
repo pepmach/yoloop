@@ -1,3 +1,9 @@
+---
+description: Pause Yoloop policy enforcement
+argument-hint: ""
+allowed-tools: Bash(yoloop:*)
+---
+
 Pause Yoloop policy enforcement so the human can edit goal or policy files.
 
 Use Bash to run:
