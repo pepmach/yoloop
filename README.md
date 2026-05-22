@@ -1,10 +1,33 @@
 # Yoloop
 
-Yoloop is a local-first harness for long-running coding agents. It is designed for the "hands-off overnight feature" workflow: a human defines an immutable goal, the harness decomposes work into tasks, workers implement one task at a time, critics verify the work, and a final jury checks the whole run before completion.
+Yoloop is a local-first harness for long-running coding agents. It is designed for the "hands-off overnight feature" workflow: a human defines a durable goal, the harness decomposes work into tasks, fresh worker agents implement one task at a time, fresh critics verify the work, and a final jury checks the whole run before completion.
 
-This repo is currently a TypeScript-first MVP control plane. It creates durable Markdown artifacts, validates machine artifacts with Zod, enforces policy through hooks, and gives agent sessions a shared artifact protocol.
+The current repo is a TypeScript-first MVP control plane. It is not published to npm yet and installability is still in progress. Today it creates Markdown runtime artifacts, validates JSON/JSONL state with Zod, runs a sequential worker-critic-grand-jury loop through host adapters, and protects core files through a `PreToolUse` hook command.
 
-## Development
+## Current Status
+
+Implemented baseline:
+
+- Markdown runtime artifacts: `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`.
+- Machine state: `TASKS.json`, `LOOP_POLICY.json`, `ADAPTERS.json`, `.yoloop/events.jsonl`, `.yoloop/human-log.jsonl`, `.yoloop/context-manifest.json`, critic verdicts, and grand jury verdicts.
+- `raw/` context ingestion through a manifest refresh.
+- Sequential `yoloop run` with fresh worker, critic, and grand jury adapter invocations.
+- Critic verdict enforcement before task completion.
+- Grand jury verdict enforcement before `<yoloop-done>`.
+- Cheap doctor preflight plus explicit `doctor --verify-checks`.
+- Claude Code plugin scaffold that delegates to the `yoloop` CLI.
+
+Not implemented yet:
+
+- npm publication.
+- `yoloop install claude|codex|auto`.
+- Interactive orchestrator wizard.
+- Decomposition critic gate.
+- Repair worker loop after critic rejection.
+- Decision queue and terminal run reports.
+- Cursor/OpenCode integrations.
+
+## Develop From Source
 
 ```powershell
 npm install
@@ -13,63 +36,149 @@ npm test
 node dist/cli.js doctor
 ```
 
-The npm package exposes a `yoloop` binary from `dist/cli.js`.
+The package declares a `yoloop` binary at `dist/cli.js`. Until npm publication and install commands exist, use `node dist/cli.js ...` from this repo or link the package locally during development.
 
 ## Quick Start
 
+The current MVP has a deterministic orchestrator, not a chat wizard. Pass the objective and task slices explicitly, then preview and run the adapter loop.
+
 ```powershell
-yoloop init --goal "Build the feature described by the product spec."
-yoloop context refresh
-yoloop doctor
-yoloop status
-yoloop orchestrate --objective "Build the feature described by the product spec." --task "Plan the change" --task "Implement the change" --force
-yoloop claim-next --worker worker-001
-yoloop task set-status --id T-001 --status critic_review --actor worker-001
-yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Finished implementation pass" --body "Changed the parser and ran npm test."
-yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
-yoloop task set-status --id T-001 --status completed --actor critic
-yoloop grand-jury write-verdict --verdict approved --summary "Final run verified" --check "final=passed:all tasks and logs reviewed"
-yoloop run --dry-run
-yoloop run
-yoloop adapter run --adapter claude-code --role worker --dry-run
+npm run build
 ```
 
-The generated harness files are:
+Create the harness files:
 
-- `GOAL.md`: immutable human-owned goal and success criteria.
-- `LOOP_POLICY.json`: budgets, protected paths, human approval gates, and configured check commands.
-- `ADAPTERS.json`: editable host adapter command templates.
-- `PLAN.md`: master implementation plan.
-- `TASKS.json`: structured task ledger.
+```powershell
+node dist/cli.js init --goal "Build the feature described by the product spec."
+```
+
+Add any long-form product notes, repo context, references, or investigation notes under `raw/`, then refresh the manifest:
+
+```powershell
+node dist/cli.js context refresh
+```
+
+Generate the goal, plan, prompts, policy, and task ledger:
+
+```powershell
+node dist/cli.js orchestrate `
+  --objective "Build the feature described by the product spec." `
+  --scope "Implement the feature in this repository." `
+  --success "The feature is implemented and critic-approved." `
+  --non-goal "Do not add parallel workers in this run." `
+  --gate "Ask before dependency, migration, auth, or deploy changes." `
+  --task "Plan the change and identify affected files." `
+  --task "Implement the feature slice." `
+  --task "Verify behavior and update harness logs." `
+  --force
+```
+
+Validate harness state without running build/test/lint/typecheck:
+
+```powershell
+node dist/cli.js doctor --refresh-context
+node dist/cli.js status
+```
+
+Optionally run configured checks from `LOOP_POLICY.json`, or discovered checks when no configured checks exist:
+
+```powershell
+node dist/cli.js doctor --verify-checks
+```
+
+Review the generated files before launching agents:
+
+- `GOAL.md`
+- `PLAN.md`
+- `TASKS.json`
+- `LOOP_POLICY.json`
+- `ADAPTERS.json`
+
+Make sure the selected adapter command exists on your machine. The default `claude-code` adapter expects `claude`; the default `codex-cli` adapter expects `codex`.
+
+Preview the next agent action:
+
+```powershell
+node dist/cli.js run --dry-run
+```
+
+Run the sequential loop with the default Claude Code adapter template:
+
+```powershell
+node dist/cli.js run --adapter claude-code
+```
+
+Or test one adapter role directly:
+
+```powershell
+node dist/cli.js adapter run --adapter claude-code --role worker --dry-run
+node dist/cli.js adapter run --adapter codex-cli --role critic --dry-run
+```
+
+## Command Reference
+
+Normal commands are short. Role-specific diagnostics are nested under `adapter run`.
+
+| Command | Purpose |
+|---|---|
+| `yoloop init` | Create the harness artifacts. |
+| `yoloop context refresh` | Refresh `.yoloop/context-manifest.json` from `raw/`. |
+| `yoloop doctor` | Run cheap validation only. |
+| `yoloop doctor --refresh-context` | Run cheap validation and refresh the raw context manifest. |
+| `yoloop doctor --verify-checks` | Execute configured checks, or discovered checks when none are configured. |
+| `yoloop status` | Print loop activity, goal hash status, grand jury status, raw context count, and task counts. |
+| `yoloop orchestrate` | Write goal, plan, prompts, tasks, policy, and context references from explicit inputs. |
+| `yoloop run` | Execute the sequential worker-critic-grand-jury loop. |
+| `yoloop run --dry-run` | Preview the next loop action without launching agents or mutating task state. |
+| `yoloop adapter run --role worker\|critic\|grand-jury` | Test one adapter role directly. |
+| `yoloop claim-next` | Manually claim the next task. Mostly useful for testing and manual harness operation. |
+| `yoloop task set-status` | Manually transition a task status. `completed` requires an approved critic verdict. |
+| `yoloop log append` | Append curated progress, failure, or decision entries. |
+| `yoloop critic write-verdict` | Write the structured verdict that gates task completion. |
+| `yoloop grand-jury write-verdict` | Write the structured final verdict that gates `<yoloop-done>`. |
+| `yoloop pause` / `yoloop resume` | Pause or resume the loop policy. |
+| `yoloop accept-goal` | Accept the current `GOAL.md` hash after an intentional goal edit. |
+| `yoloop hook pretooluse` | Let host plugins ask Yoloop whether a proposed tool call should proceed. |
+
+Deprecated compatibility forms are still accepted for now:
+
+- `yoloop run --until-done`
+- `yoloop run --execute`
+- `yoloop run --role ...`
+
+New usage should prefer `yoloop run`, `yoloop run --dry-run`, and `yoloop adapter run --role ...`.
+
+## Runtime Artifacts
+
+Human-facing artifacts are Markdown by default:
+
+- `GOAL.md`: immutable human-owned objective, scope, success criteria, non-goals, and gates.
+- `PLAN.md`: master implementation plan and task sequence.
 - `WORKER_PROMPT.md`: worker session bootstrap.
 - `CRITIC_PROMPT.md`: critic session bootstrap.
 - `PROGRESS.md`: rendered worker progress.
 - `FAILURES.md`: rendered failure memory.
 - `DECISIONS.md`: rendered decision log.
-- `raw/`: user-supplied product notes, repo context, references, and domain knowledge for the orchestrator, worker, critic, and grand jury.
+- `raw/`: user-owned context dump for specs, notes, references, and domain knowledge.
+
+Machine-enforced artifacts stay structured:
+
+- `TASKS.json`: task ledger.
+- `LOOP_POLICY.json`: budgets, protected paths, human gates, and configured check commands.
+- `ADAPTERS.json`: editable host adapter command templates.
+- `.yoloop/goal.sha256`: accepted hash for immutable `GOAL.md`.
 - `.yoloop/events.jsonl`: append-only machine event log.
-- `.yoloop/human-log.jsonl`: canonical append-only human log state rendered into progress, failure, and decision Markdown files.
+- `.yoloop/human-log.jsonl`: canonical append-only source for progress, failure, and decision renders.
 - `.yoloop/context-manifest.json`: sorted manifest of `raw/` files with path, byte size, SHA-256 hash, and media type.
-- `.yoloop/critic-verdicts/`: structured critic verdict output.
-- `.yoloop/grand-jury-verdicts/`: structured final run verdict output.
+- `.yoloop/critic-verdicts/`: structured critic verdicts.
+- `.yoloop/grand-jury-verdicts/`: structured final run verdicts.
+- `.yoloop/runs/`: adapter stdout/stderr captures.
 
-## Design Bias
+Optional HTML reports or dashboards can come later, but they are not the primary runtime state.
 
-The harness keeps human-readable logs for review, but uses JSON/JSONL for enforcement. Agents can write prose for humans; the harness enforces immutable goals, budgets, task ownership, and policy decisions from structured files.
+## Logging Protocol
 
-Yoloop's default execution model is fresh one-shot role sessions. Workers, critics, repair workers, decomposition critics, and grand juries should start from durable artifacts instead of relying on a preserved chat transcript. Startup speed should be improved through concise prompts, context manifests, discovered checks, and role-specific model policy rather than persistent sessions.
-
-### Artifact Format Policy
-
-Yoloop uses different file formats for different jobs:
-
-- Markdown for default human review surfaces: runtime goals, plans, prompts, decomposition review, progress logs, failure memory, decision logs, run reports, README, contributor docs, public roadmap, and host instruction files.
-- JSON/JSONL for enforcement and machine state: tasks, policy, adapters, verdicts, hashes, events, raw context manifests, decision queues, and canonical human log entries.
-- HTML only for optional rich generated reports or dashboards later.
-
-The current runtime artifact set is `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`, backed by `.yoloop/human-log.jsonl` and `.yoloop/context-manifest.json`. Future slices add `DECOMPOSITION_REVIEW.md`, `REPORT.md`, `.yoloop/decomposition-verdicts/`, and `.yoloop/decision-queue.json`.
-
-Workers append curated human log entries through `yoloop log append` instead of directly editing the rendered Markdown files:
+Agents should not directly edit `PROGRESS.md`, `FAILURES.md`, or `DECISIONS.md`. They append curated entries through the CLI, and Yoloop renders the Markdown files from `.yoloop/human-log.jsonl`.
 
 ```powershell
 yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Started implementation" --body "Mapped the relevant modules and selected the task-local edit path."
@@ -77,74 +186,51 @@ yoloop log append --kind failure --task-id T-001 --actor worker-001 --summary "n
 yoloop log append --kind decision --task-id T-001 --actor worker-001 --summary "Kept JSON as source of truth" --body "Structured artifacts remain the enforced state; human logs are rendered review material."
 ```
 
-While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to the append-only human logs and their canonical JSONL source. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads.
+The expected worker cadence is:
 
-`raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. `yoloop context refresh` writes `.yoloop/context-manifest.json` so fresh agent sessions can inspect available context without rediscovering the raw tree from scratch.
+- on task claim;
+- after repo and `raw/` context survey;
+- after each meaningful implementation unit;
+- after every failed build, test, or critic cycle;
+- before handoff to critic;
+- before requesting human approval;
+- before session exit.
 
-The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.ts` are the source of truth for JSON artifacts; generated JSON Schema files can be added later if external tooling needs them.
+## Doctor And Checks
 
-### Doctor Preflight
+`yoloop run` performs cheap preflight before launching agents. It validates required artifacts, parses JSON state, verifies the `GOAL.md` hash, refreshes `.yoloop/context-manifest.json`, discovers likely check commands by reading repo files, and validates configured check command strings.
 
-`yoloop run` performs a cheap preflight before launching agents. This preflight validates required artifacts, parses JSON state, verifies the `GOAL.md` hash, refreshes `.yoloop/context-manifest.json`, discovers likely check commands by reading repo files, and validates configured check command strings.
-
-Normal preflight does not run real checks such as `npm test`, `npm run build`, lint, or typecheck. Those belong to critic execution or an explicit verification pass:
+Normal preflight does not run real build/test/lint/typecheck commands. Use the explicit check path when you want execution:
 
 ```powershell
 yoloop doctor --verify-checks
 ```
 
-`yoloop doctor --verify-checks` runs configured `LOOP_POLICY.json` checks when present; otherwise it runs discovered checks. Plain `yoloop doctor` reports configured and discovered check counts without executing them. Use `yoloop doctor --refresh-context` when you want doctor to refresh the raw context manifest too.
+Check selection is:
 
-`yoloop orchestrate` is the deterministic Orchestrator MVP. It reads `raw/`, accepts explicit objective/scope/success/non-goal/gate/task inputs, and writes the durable harness artifacts without launching workers.
+1. Run `LOOP_POLICY.json.checks` if configured.
+2. Otherwise run discovered checks from files such as `package.json`, `Cargo.toml`, `pyproject.toml`, and `go.mod`.
 
-The next orchestration shape adds a blocking decomposition critic between orchestration and workers. It should reject vague tasks, missing success criteria, invalid dependencies, missing checks, unsafe scopes, missing milestone ownership, and plans that violate non-goals or human gates. `yoloop run` should refuse to launch workers unless the latest decomposition verdict is approved for the current goal, plan, policy, and task ledger hashes.
-
-Task completion is gated by critic verdicts. `yoloop task set-status --status completed` fails unless the latest verdict for that task is `approved`.
-
-```powershell
-yoloop critic write-verdict --task-id T-001 --verdict approved --summary "Verified" --check "npm test=passed:clean"
-yoloop task set-status --id T-001 --status completed --actor critic
-```
-
-Loop completion is gated by the grand jury. After all runnable tasks are completed, `yoloop run` launches the `grand-jury` adapter and emits `<yoloop-done>` only after the latest final verdict is approved:
-
-```powershell
-yoloop grand-jury write-verdict --verdict approved --summary "Final run verified" --check "final=passed:all tasks, verdicts, failures, decisions, and non-goals reviewed"
-```
+Discovery reads files only. It does not spawn package managers during normal preflight.
 
 ## Host Adapters
 
-Yoloop is meant to stay host-neutral. The `plugins/yoloop` directory is the first adapter: a thin Claude Code plugin wrapper that assumes the `yoloop` binary is installed on `PATH` and delegates hook decisions to:
+Yoloop is host-neutral. `ADAPTERS.json` contains command templates for agent hosts. The default catalog includes:
+
+- `claude-code`
+- `codex-cli`
+
+The `plugins/yoloop` directory is the first Claude Code plugin scaffold. It assumes the `yoloop` binary is on `PATH` and delegates hook decisions to:
 
 ```powershell
 yoloop hook pretooluse
 ```
 
-Future adapters for Codex, OpenCode, Cursor, and other agent runtimes should share the same state machine instead of forking the harness logic.
-
-Installability is not solved yet. The project should add `yoloop install claude|codex|auto`, npm publication prep, and clear verification so users are not left guessing how to connect an installed npm package to Claude Code or Codex. If the `yoloop` npm name is unavailable, the release plan should use a scoped fallback such as `@pepmach/yoloop`.
-
-`yoloop run` executes the sequential worker-critic loop by default. Use `--dry-run` to preview the first claimable task and rendered worker/critic adapter commands without launching agents or changing task state:
-
-```powershell
-yoloop run --dry-run
-yoloop run --adapter claude-code
-```
-
-Role-specific adapter testing lives under `yoloop adapter run`. It executes the selected role by default and supports `--dry-run` for command preview:
-
-```powershell
-yoloop adapter run --adapter claude-code --role worker --dry-run
-yoloop adapter run --adapter codex-cli --role critic
-```
-
-Adapter templates live in `ADAPTERS.json` so Claude Code, Codex, and future hosts can evolve independently of the harness state machine.
-
-`yoloop run --until-done`, `yoloop run --execute`, and `yoloop run --role ...` are accepted as deprecated compatibility forms for now. New usage should prefer `yoloop run`, `yoloop run --dry-run`, and `yoloop adapter run --role ...`.
+Codex support currently exists as an adapter template, not as a fully installable Codex plugin. Future work should add `yoloop install claude|codex|auto`, npm publication prep, and clear verification commands. Cursor and OpenCode are future integration targets.
 
 ## Goal Update Flow
 
-`GOAL.md` is immutable while the current loop is active. To change the current goal:
+`GOAL.md` is immutable while the loop is active. To change it:
 
 ```powershell
 yoloop pause
@@ -153,4 +239,35 @@ yoloop accept-goal
 yoloop resume
 ```
 
-That mirrors the intended operational model: stop the loop, update the human-owned goal, accept the new hash, then relaunch.
+That mirrors the intended operating model: stop the loop, update the human-owned goal, accept the new hash, then relaunch.
+
+## Architecture Bias
+
+Yoloop keeps human review material in Markdown, enforcement state in JSON/JSONL, and host integrations as thin adapters over one TypeScript control plane.
+
+Fresh one-shot role sessions are the default. Workers, critics, repair workers, decomposition critics, and grand juries should start from durable artifacts instead of relying on preserved chat transcripts. Startup speed should be improved through concise prompts, context manifests, discovered checks, and role-specific model policy rather than persistent sessions.
+
+Parallel workers are intentionally deferred. They require worktree isolation, task ownership paths, merge policy, and integration critics.
+
+## Development Notes
+
+Run the normal checks before committing:
+
+```powershell
+npm run build
+npm test
+```
+
+Primary source files:
+
+- `src/main.ts`: CLI command dispatch.
+- `src/app.ts`: init, status, doctor, preflight, pause/resume, goal acceptance.
+- `src/orchestrator.ts`: deterministic orchestrator MVP.
+- `src/runner.ts`: sequential worker-critic-grand-jury runner.
+- `src/checks.ts`: check discovery and explicit check execution.
+- `src/hooks.ts`: `PreToolUse` policy decisions.
+- `src/logs.ts`: append-only human log entries and Markdown rendering.
+- `src/tasks.ts`: task transitions and verdict-gated completion.
+- `src/verdicts.ts` and `src/grandJury.ts`: structured verdict writers and gates.
+
+See `docs/ROADMAP.md` and `docs/ARCHITECTURE.md` for the next product slices.
