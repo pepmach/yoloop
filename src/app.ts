@@ -24,6 +24,8 @@ import {
   CONTEXT_MANIFEST_PATH,
   CRITIC_PROMPT_PATH,
   CRITIC_VERDICTS_DIR,
+  DECOMPOSITION_REVIEW_PATH,
+  DECOMPOSITION_VERDICTS_DIR,
   DECISIONS_PATH,
   EVENTS_PATH,
   FAILURES_PATH,
@@ -59,6 +61,7 @@ export type DoctorOptions = {
 
 export function init(root: string, goal: string | undefined, force: boolean): void {
   ensureDir(join(root, YOLOOP_DIR));
+  ensureDir(join(root, DECOMPOSITION_VERDICTS_DIR));
   ensureDir(join(root, CRITIC_VERDICTS_DIR));
   ensureDir(join(root, GRAND_JURY_VERDICTS_DIR));
   ensureDir(join(root, RAW_DIR));
@@ -71,6 +74,7 @@ export function init(root: string, goal: string | undefined, force: boolean): vo
   writeNew(join(root, PLAN_PATH), defaultPlan(), force);
   writeNew(join(root, WORKER_PROMPT_PATH), defaultWorkerPrompt(), force);
   writeNew(join(root, CRITIC_PROMPT_PATH), defaultCriticPrompt(), force);
+  writeNew(join(root, DECOMPOSITION_REVIEW_PATH), pendingDecompositionReview(), force);
   writeNew(join(root, HUMAN_LOG_PATH), "", force);
   writeNew(join(root, PROGRESS_PATH), emptyLogMarkdown("Progress"), force);
   writeNew(join(root, FAILURES_PATH), emptyLogMarkdown("Failures"), force);
@@ -159,13 +163,14 @@ export function doctor(root: string, options: DoctorOptions = {}): void {
     PLAN_PATH,
     WORKER_PROMPT_PATH,
     CRITIC_PROMPT_PATH,
+    DECOMPOSITION_REVIEW_PATH,
     HUMAN_LOG_PATH,
     PROGRESS_PATH,
     FAILURES_PATH,
     DECISIONS_PATH,
     EVENTS_PATH,
   ];
-  const requiredDirs = [YOLOOP_DIR, RAW_DIR, CRITIC_VERDICTS_DIR, GRAND_JURY_VERDICTS_DIR];
+  const requiredDirs = [YOLOOP_DIR, RAW_DIR, DECOMPOSITION_VERDICTS_DIR, CRITIC_VERDICTS_DIR, GRAND_JURY_VERDICTS_DIR];
 
   for (const path of requiredDirs) {
     const fullPath = join(root, path);
@@ -260,4 +265,13 @@ function rawContextFileCount(root: string): number {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function pendingDecompositionReview(): string {
+  return `# Decomposition Review
+
+No decomposition verdict has been written yet.
+
+Run \`yoloop decomposition write-verdict\` after a decomposition critic verifies that \`${TASKS_PATH}\` is executable.
+`;
 }

@@ -5,6 +5,7 @@ import { appendEvent, atomicWriteFile, ensureDir, goalIntegrity, nowIso, readAda
 import {
   CONTEXT_MANIFEST_PATH,
   CRITIC_PROMPT_PATH,
+  DECOMPOSITION_REVIEW_PATH,
   DECISIONS_PATH,
   FAILURES_PATH,
   GOAL_PATH,
@@ -106,6 +107,7 @@ export function renderTemplate(value: string): string {
     .replace(/\{\{tasks\}\}/g, TASKS_PATH)
     .replace(/\{\{worker_prompt\}\}/g, WORKER_PROMPT_PATH)
     .replace(/\{\{critic_prompt\}\}/g, CRITIC_PROMPT_PATH)
+    .replace(/\{\{decomposition_review\}\}/g, DECOMPOSITION_REVIEW_PATH)
     .replace(/\{\{context_manifest\}\}/g, CONTEXT_MANIFEST_PATH)
     .replace(/\{\{progress\}\}/g, PROGRESS_PATH)
     .replace(/\{\{failures\}\}/g, FAILURES_PATH)

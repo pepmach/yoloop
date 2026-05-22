@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { init, doctor, status, setActive, acceptGoal } from "./app";
 import { runAdapter } from "./adapters";
 import { refreshContextManifest } from "./context";
+import { writeDecompositionVerdict } from "./decomposition";
 import { fail } from "./errors";
 import { writeGrandJuryVerdict } from "./grandJury";
 import { printHookDecision, pretooluse } from "./hooks";
@@ -111,6 +112,12 @@ export function run(args: string[], root: string): void {
       }
       runCriticWriteVerdict(root, rest);
       return;
+    case "decomposition":
+      if (subcommand !== "write-verdict") {
+        fail("expected decomposition write-verdict");
+      }
+      runDecompositionWriteVerdict(root, rest);
+      return;
     case "grand-jury":
       if (subcommand !== "write-verdict") {
         fail("expected grand-jury write-verdict");
@@ -166,6 +173,18 @@ function runCriticWriteVerdict(root: string, args: string[]): void {
     options.many("check"),
     options.many("gap"),
     options.one("actor") ?? "critic",
+  );
+}
+
+function runDecompositionWriteVerdict(root: string, args: string[]): void {
+  const options = parseOptions(args);
+  writeDecompositionVerdict(
+    root,
+    parseVerdictDecision(options.required("verdict")),
+    options.required("summary"),
+    options.many("check"),
+    options.many("gap"),
+    options.one("actor") ?? "decomposition-critic",
   );
 }
 

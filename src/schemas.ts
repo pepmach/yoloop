@@ -42,6 +42,9 @@ export type CheckStatus = z.infer<typeof CheckStatusSchema>;
 export const CheckKindSchema = z.enum(["build", "lint", "typecheck", "test", "integration", "check"]);
 export type CheckKind = z.infer<typeof CheckKindSchema>;
 
+export const TaskRiskSchema = z.enum(["low", "medium", "high"]);
+export type TaskRisk = z.infer<typeof TaskRiskSchema>;
+
 export const CheckCommandSchema = z
   .object({
     kind: CheckKindSchema,
@@ -102,14 +105,30 @@ export type AdapterCatalog = z.infer<typeof AdapterCatalogSchema>;
 export const TaskSchema = z
   .object({
     id: z.string(),
+    milestoneId: z.string().min(1),
     title: z.string(),
     description: z.string(),
+    successCriteria: z.array(z.string().min(1)),
     status: TaskStatusSchema,
     priority: z.number().int(),
+    risk: TaskRiskSchema,
     attempts: z.number().int(),
     claimedBy: z.string().nullable(),
     dependsOn: z.array(z.string()),
     allowedPaths: z.array(z.string()),
+    checks: z.array(z.string().min(1)),
+    gates: z.array(z.string().min(1)),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+export const MilestoneSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string(),
+    taskIds: z.array(z.string()),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -118,10 +137,12 @@ export const TaskSchema = z
 export const TaskLedgerSchema = z
   .object({
     schemaVersion: z.number().int(),
+    milestones: z.array(MilestoneSchema),
     tasks: z.array(TaskSchema),
   })
   .strict();
 export type Task = z.infer<typeof TaskSchema>;
+export type Milestone = z.infer<typeof MilestoneSchema>;
 export type TaskLedger = z.infer<typeof TaskLedgerSchema>;
 
 export const VerdictCheckSchema = z
@@ -158,6 +179,22 @@ export const GrandJuryVerdictSchema = z
   })
   .strict();
 export type GrandJuryVerdict = z.infer<typeof GrandJuryVerdictSchema>;
+
+export const DecompositionVerdictSchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    verdict: VerdictDecisionSchema,
+    summary: z.string(),
+    checks: z.array(VerdictCheckSchema),
+    gaps: z.array(z.string()),
+    goalSha256: z.string(),
+    planSha256: z.string(),
+    policySha256: z.string(),
+    tasksSha256: z.string(),
+    createdAt: z.string(),
+  })
+  .strict();
+export type DecompositionVerdict = z.infer<typeof DecompositionVerdictSchema>;
 
 export const EventSchema = z
   .object({

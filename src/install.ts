@@ -12,6 +12,7 @@ const REQUIRED_INSTALL_ARTIFACTS = [
   "plugins/yoloop/.claude-plugin/plugin.json",
   "plugins/yoloop/.codex-plugin/plugin.json",
   "plugins/yoloop/commands/run.md",
+  "plugins/yoloop/commands/decomposition-write-verdict.md",
   "plugins/yoloop/hooks/hooks.json",
   "plugins/yoloop/skills/using-yoloop/SKILL.md",
 ];

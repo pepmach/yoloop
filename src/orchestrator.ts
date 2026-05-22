@@ -14,6 +14,8 @@ import {
   ADAPTERS_PATH,
   CRITIC_PROMPT_PATH,
   CRITIC_VERDICTS_DIR,
+  DECOMPOSITION_REVIEW_PATH,
+  DECOMPOSITION_VERDICTS_DIR,
   DECISIONS_PATH,
   EVENTS_PATH,
   FAILURES_PATH,
@@ -54,6 +56,7 @@ type RawContextFile = {
 
 export function orchestrate(root: string, input: OrchestratorInput): void {
   ensureDir(join(root, YOLOOP_DIR));
+  ensureDir(join(root, DECOMPOSITION_VERDICTS_DIR));
   ensureDir(join(root, CRITIC_VERDICTS_DIR));
   ensureDir(join(root, GRAND_JURY_VERDICTS_DIR));
   ensureDir(join(root, RAW_DIR));
@@ -69,6 +72,7 @@ export function orchestrate(root: string, input: OrchestratorInput): void {
   writeNew(join(root, PLAN_PATH), orchestratedPlanMarkdown(normalized, rawContext, tasks), input.force);
   writeNew(join(root, WORKER_PROMPT_PATH), defaultWorkerPrompt(), input.force);
   writeNew(join(root, CRITIC_PROMPT_PATH), defaultCriticPrompt(), input.force);
+  writeNew(join(root, DECOMPOSITION_REVIEW_PATH), pendingDecompositionReview(tasks), input.force);
   writeNew(join(root, HUMAN_LOG_PATH), "", input.force);
   writeNew(join(root, PROGRESS_PATH), emptyLogMarkdown("Progress"), input.force);
   writeNew(join(root, FAILURES_PATH), emptyLogMarkdown("Failures"), input.force);
@@ -113,21 +117,40 @@ function normalizeList(values: string[], fallback: string[]): string[] {
 
 function taskLedgerFromInput(taskTitles: string[]): TaskLedger {
   const now = nowIso();
+  const taskIds = taskTitles.map((_, index) => `T-${String(index + 1).padStart(3, "0")}`);
   return {
     schemaVersion: 1,
-    tasks: taskTitles.map((title, index) => ({
-      id: `T-${String(index + 1).padStart(3, "0")}`,
-      title,
-      description: title,
-      status: "pending",
-      priority: (index + 1) * 100,
-      attempts: 0,
-      claimedBy: null,
-      dependsOn: index === 0 ? [] : [`T-${String(index).padStart(3, "0")}`],
-      allowedPaths: ["."],
-      createdAt: now,
-      updatedAt: now,
-    })),
+    milestones: [
+      {
+        id: "M-001",
+        title: "Implementation milestone",
+        description: "Sequential task set generated from the orchestrator input.",
+        taskIds,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    tasks: taskTitles.map((title, index) => {
+      const taskId = taskIds[index];
+      return {
+        id: taskId,
+        milestoneId: "M-001",
+        title,
+        description: title,
+        successCriteria: [`${title} is complete and critic-approved.`],
+        status: "pending",
+        priority: (index + 1) * 100,
+        risk: "medium",
+        attempts: 0,
+        claimedBy: null,
+        dependsOn: index === 0 ? [] : [taskIds[index - 1]],
+        allowedPaths: ["."],
+        checks: ["doctor"],
+        gates: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+    }),
   };
 }
 
@@ -240,4 +263,15 @@ function rawContextList(rawContext: RawContextFile[]): string {
 
 function markdownList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
+}
+
+function pendingDecompositionReview(tasks: TaskLedger): string {
+  return `# Decomposition Review
+
+Status: pending
+
+The orchestrator generated ${tasks.tasks.length} task(s) across ${tasks.milestones.length} milestone(s).
+
+A decomposition critic must approve \`${TASKS_PATH}\` before \`yoloop run\` can launch workers.
+`;
 }

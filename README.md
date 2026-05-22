@@ -72,6 +72,15 @@ Review the generated files before launching agents:
 - `LOOP_POLICY.json`
 - `ADAPTERS.json`
 
+Approve the decomposition before launching workers. In the current MVP this can be written manually or by a decomposition-critic agent:
+
+```powershell
+yoloop decomposition write-verdict `
+  --verdict approved `
+  --summary "Task ledger is executable." `
+  --check "task-contract=passed:tasks have concrete criteria"
+```
+
 Make sure the selected adapter command exists on your machine. The default `claude-code` adapter expects `claude`; the default `codex-cli` adapter expects `codex`.
 
 Preview the next agent action:
@@ -107,6 +116,7 @@ Normal commands are short. Role-specific diagnostics are nested under `adapter r
 | `yoloop doctor --verify-checks` | Execute the merged configured-plus-discovered check plan. |
 | `yoloop status` | Print loop activity, goal hash status, grand jury status, raw context count, and task counts. |
 | `yoloop orchestrate` | Write goal, plan, prompts, tasks, policy, and context references from explicit inputs. |
+| `yoloop decomposition write-verdict` | Approve, reject, or escalate the generated task decomposition before workers can start. |
 | `yoloop run` | Execute the sequential worker-critic-grand-jury loop. |
 | `yoloop run --dry-run` | Preview the next loop action without launching agents or mutating task state. |
 | `yoloop adapter run --role worker\|critic\|grand-jury` | Test one adapter role directly. |
@@ -135,6 +145,7 @@ Human-facing artifacts are Markdown by default:
 - `PLAN.md`: master implementation plan and task sequence.
 - `WORKER_PROMPT.md`: worker session bootstrap.
 - `CRITIC_PROMPT.md`: critic session bootstrap.
+- `DECOMPOSITION_REVIEW.md`: rendered decomposition verdict and task-plan gaps.
 - `PROGRESS.md`: rendered worker progress.
 - `FAILURES.md`: rendered failure memory.
 - `DECISIONS.md`: rendered decision log.
@@ -149,6 +160,7 @@ Machine-enforced artifacts stay structured:
 - `.yoloop/events.jsonl`: append-only machine event log.
 - `.yoloop/human-log.jsonl`: canonical append-only source for progress, failure, and decision renders.
 - `.yoloop/context-manifest.json`: sorted manifest of `raw/` files with path, byte size, SHA-256 hash, and media type.
+- `.yoloop/decomposition-verdicts/`: structured decomposition verdicts that gate worker execution.
 - `.yoloop/critic-verdicts/`: structured critic verdicts.
 - `.yoloop/grand-jury-verdicts/`: structured final run verdicts.
 - `.yoloop/runs/`: adapter stdout/stderr captures.
@@ -206,6 +218,20 @@ Check selection is:
 3. If a configured check and discovered check share the same `kind:name`, use the configured check.
 
 Discovery reads files only. It detects package managers such as `npm`, `pnpm`, `yarn`, `bun`, `cargo`, `python`, and `go`, but it does not spawn package managers during normal preflight.
+
+## Task Decomposition Gate
+
+`TASKS.json` includes milestone and task contracts. Each task records:
+
+- `milestoneId`
+- `successCriteria`
+- `dependsOn`
+- `allowedPaths`
+- `risk`
+- `checks`
+- `gates`
+
+Before `yoloop run` launches workers, the current `GOAL.md`, `PLAN.md`, `LOOP_POLICY.json`, and `TASKS.json` must have an approved decomposition verdict under `.yoloop/decomposition-verdicts/`. If any of those artifacts change, the verdict becomes stale and workers will not start until a new verdict is written.
 
 ## Host Plugins And Adapters
 

@@ -343,6 +343,7 @@ test("adapter template renders raw placeholder", () => {
     renderTemplate("read {{context_manifest}} before {{raw}}"),
     "read .yoloop/context-manifest.json before raw",
   );
+  assert.equal(renderTemplate("inspect {{decomposition_review}}"), "inspect DECOMPOSITION_REVIEW.md");
 });
 
 test("pretooluse blocks immutable goal edits", () => {
@@ -450,6 +451,14 @@ test("orchestrator writes goal plan tasks and raw context", () => {
     assert.ok(goal.includes("Build the orchestrator MVP"));
     assert.ok(goal.includes("raw/context.txt"));
     assert.ok(plan.includes("T-001"));
+    assert.ok(existsSync(join(root, "DECOMPOSITION_REVIEW.md")));
+    assert.ok(existsSync(join(root, ".yoloop", "decomposition-verdicts")));
+    assert.equal(tasks.milestones[0].id, "M-001");
+    assert.equal(tasks.tasks[0].milestoneId, "M-001");
+    assert.deepEqual(tasks.tasks[0].successCriteria, ["Generate artifacts is complete and critic-approved."]);
+    assert.equal(tasks.tasks[0].risk, "medium");
+    assert.deepEqual(tasks.tasks[0].checks, ["doctor"]);
+    assert.deepEqual(tasks.tasks[0].gates, []);
     assert.equal(tasks.tasks.length, 2);
     assert.equal(tasks.tasks[1].dependsOn[0], "T-001");
     assert.ok(existsSync(join(root, ".yoloop", "goal.sha256")));
@@ -497,6 +506,7 @@ test("sequential runner executes worker critic pairs until done", () => {
 
     runUntilDone(root, { adapter: "mock", dryRun: true });
     assert.equal(readTasks(root).tasks[0].status, "pending");
+    approveDecomposition(root);
     runUntilDone(root, { adapter: "mock", dryRun: false });
     const tasks = readTasks(root).tasks;
     assert.equal(tasks[0].status, "completed");
@@ -532,6 +542,7 @@ test("cli run executes by default and dry-run previews", () => {
     const postDryRunManifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
     assert.equal(postDryRunManifest.files.length, 0);
     assert.equal(readTasks(root).tasks[0].status, "pending");
+    approveDecomposition(root);
     runCli(["run", "--adapter", "mock"], root);
     const postRunManifest = JSON.parse(readFileSync(join(root, ".yoloop", "context-manifest.json"), "utf8"));
     assert.deepEqual(postRunManifest.files.map((file: { path: string }) => file.path), ["raw/late.txt"]);
@@ -557,6 +568,7 @@ test("grand jury rejection blocks loop completion", () => {
     });
     writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript("rejected"), "utf8");
     writeMockAdapter(root);
+    approveDecomposition(root);
 
     assert.throws(() => runCli(["run", "--adapter", "mock"], root), /grand jury verdict is rejected/);
     assert.equal(readTasks(root).tasks[0].status, "completed");
@@ -581,6 +593,29 @@ test("grand jury verdict requires all runnable tasks completed", () => {
         "review=passed:ok",
       ], root),
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("run refuses worker execution without approved decomposition verdict", () => {
+  const root = tempRoot("decomposition-required");
+  try {
+    init(root, "Loop goal", true);
+    orchestrate(root, {
+      objective: "Run one task",
+      scope: [],
+      success: [],
+      nonGoal: [],
+      gate: [],
+      task: ["Only task"],
+      force: true,
+    });
+    writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
+    writeMockAdapter(root);
+
+    assert.throws(() => runCli(["run", "--adapter", "mock"], root), /approved decomposition verdict/);
+    assert.equal(readTasks(root).tasks[0].status, "pending");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -615,6 +650,7 @@ test("cli accepts deprecated run flags with warnings", () => {
     });
     writeFileSync(join(root, "mock-agent.cjs"), mockAgentScript(), "utf8");
     writeMockAdapter(root);
+    approveDecomposition(root);
 
     const warnings = captureConsoleError(() => {
       runCli(["run", "--adapter", "mock", "--until-done", "--execute"], root);
@@ -773,6 +809,19 @@ function writeMockAdapter(root: string): void {
     )}\n`,
     "utf8",
   );
+}
+
+function approveDecomposition(root: string): void {
+  runCli([
+    "decomposition",
+    "write-verdict",
+    "--verdict",
+    "approved",
+    "--summary",
+    "Task ledger is executable.",
+    "--check",
+    "task-contract=passed:tasks have concrete criteria",
+  ], root);
 }
 
 function shellQuote(value: string): string {

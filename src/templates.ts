@@ -1,5 +1,6 @@
 import {
   CONTEXT_MANIFEST_PATH,
+  DECOMPOSITION_REVIEW_PATH,
   DECISIONS_PATH,
   FAILURES_PATH,
   GOAL_HASH_PATH,
@@ -76,7 +77,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "-p",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{decomposition_review}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
       {
@@ -93,7 +94,7 @@ export function defaultAdapters(): AdapterCatalog {
         ],
         grandJuryArgs: [
           "exec",
-          "Read {{goal}}, {{plan}}, {{tasks}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
+          "Read {{goal}}, {{plan}}, {{tasks}}, {{decomposition_review}}, {{context_manifest}}, {{progress}}, {{failures}}, {{decisions}}, raw/ context, and all critic verdicts. Approve only if the entire run is complete and clean. Write the final verdict with yoloop grand-jury write-verdict.",
         ],
       },
     ],
@@ -104,17 +105,32 @@ export function defaultTasks(): TaskLedger {
   const now = nowIso();
   return {
     schemaVersion: 1,
+    milestones: [
+      {
+        id: "M-001",
+        title: "Initial implementation milestone",
+        description: "Replace this seed milestone with a concrete milestone plan before launching workers.",
+        taskIds: ["T-001"],
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
     tasks: [
       {
         id: "T-001",
+        milestoneId: "M-001",
         title: "Replace this seed task with the first implementation slice",
         description: "Describe the smallest useful task the first worker should complete.",
+        successCriteria: ["The task has concrete implementation and verification criteria."],
         status: "pending",
         priority: 100,
+        risk: "medium",
         attempts: 0,
         claimedBy: null,
         dependsOn: [],
         allowedPaths: ["."],
+        checks: ["doctor"],
+        gates: [],
         createdAt: now,
         updatedAt: now,
       },
@@ -163,6 +179,7 @@ You are the worker in a Yoloop harness. You run as a fresh one-shot role session
 - \`${GOAL_PATH}\`: immutable human objective and success criteria.
 - \`${POLICY_PATH}\`: budgets, protected files, and human approval gates.
 - \`${PLAN_PATH}\`: implementation plan.
+- \`${DECOMPOSITION_REVIEW_PATH}\`: decomposition critic result. Workers must not start if this is missing, stale, or rejected.
 - \`${TASKS_PATH}\`: source of truth for task status and ownership.
 - \`${CONTEXT_MANIFEST_PATH}\`: manifest of files currently under \`${RAW_DIR}/\`.
 - \`${PROGRESS_PATH}\`: rendered progress log. Append with \`yoloop log append --kind progress\`; do not edit directly.
@@ -173,12 +190,13 @@ You are the worker in a Yoloop harness. You run as a fresh one-shot role session
 ## Protocol
 
 1. Claim exactly one pending task.
-2. Survey relevant repo context and \`${RAW_DIR}/\` before editing.
-3. Append a progress entry at meaningful state transitions with \`yoloop log append --kind progress --task-id T-001 --summary "..." --body "..."\`.
-4. Append a failure entry after every failed test, build, rejected approach, or critic rejection with \`yoloop log append --kind failure --task-id T-001 --summary "..." --body "..."\`.
-5. Append a decision entry for important implementation choices that do not require human approval with \`yoloop log append --kind decision --task-id T-001 --summary "..." --body "..."\`.
-6. Stop and request human approval if the task crosses a gate in \`${POLICY_PATH}\`.
-7. Hand off to critic only after deterministic local checks have been run or clearly documented as unavailable.
+2. Verify the task contract includes milestone, success criteria, checks, allowed paths, risk, dependencies, and gates.
+3. Survey relevant repo context and \`${RAW_DIR}/\` before editing.
+4. Append a progress entry at meaningful state transitions with \`yoloop log append --kind progress --task-id T-001 --summary "..." --body "..."\`.
+5. Append a failure entry after every failed test, build, rejected approach, or critic rejection with \`yoloop log append --kind failure --task-id T-001 --summary "..." --body "..."\`.
+6. Append a decision entry for important implementation choices that do not require human approval with \`yoloop log append --kind decision --task-id T-001 --summary "..." --body "..."\`.
+7. Stop and request human approval if the task crosses a gate in \`${POLICY_PATH}\`.
+8. Hand off to critic only after deterministic local checks have been run or clearly documented as unavailable.
 `;
 }
 
@@ -192,6 +210,7 @@ You are the critic in a Yoloop harness. You run as a fresh one-shot role session
 - \`${GOAL_PATH}\`
 - \`${POLICY_PATH}\`
 - \`${PLAN_PATH}\`
+- \`${DECOMPOSITION_REVIEW_PATH}\`
 - \`${TASKS_PATH}\`
 - \`${CONTEXT_MANIFEST_PATH}\`
 - \`${PROGRESS_PATH}\`
@@ -203,10 +222,11 @@ You are the critic in a Yoloop harness. You run as a fresh one-shot role session
 ## Verification Order
 
 1. Confirm the claimed task matches the goal and plan.
-2. Run deterministic checks first: format, lint, typecheck, tests, build, and integration checks when available.
-3. Inspect the diff for regression risk, hidden scope expansion, missing tests, and unacknowledged side effects.
-4. Verify failures and decisions are documented.
-5. Write a structured verdict with \`yoloop critic write-verdict\`.
+2. Confirm the task contract was specific enough to execute: milestone, success criteria, dependencies, allowed paths, risk, checks, and gates.
+3. Run deterministic checks first: format, lint, typecheck, tests, build, and integration checks when available.
+4. Inspect the diff for regression risk, hidden scope expansion, missing tests, and unacknowledged side effects.
+5. Verify failures and decisions are documented.
+6. Write a structured verdict with \`yoloop critic write-verdict\`.
 
 ## Do Not Approve If
 

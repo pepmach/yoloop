@@ -23,6 +23,7 @@ Claude Code commands:
 - `/yoloop:run`
 - `/yoloop:adapter-run`
 - `/yoloop:log-append`
+- `/yoloop:decomposition-write-verdict`
 - `/yoloop:grand-jury-write-verdict`
 - `/yoloop:run-until-done`
 

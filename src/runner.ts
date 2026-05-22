@@ -1,5 +1,6 @@
 import { fail } from "./errors";
 import { preflight } from "./app";
+import { ensureDecompositionApproved } from "./decomposition";
 import { ensureGrandJuryApproved } from "./grandJury";
 import { appendEvent, goalIntegrity, nowIso, readPolicy, readTasks } from "./io";
 import { resolveAdapterCommand, runAdapter } from "./adapters";
@@ -25,6 +26,7 @@ export function runUntilDone(root: string, options: SequentialRunOptions): void 
   }
 
   preflight(root);
+  ensureDecompositionApproved(root);
   appendEvent(root, {
     timestamp: nowIso(),
     kind: "loop.started",
