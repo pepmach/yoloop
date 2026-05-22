@@ -8,6 +8,7 @@ import {
   prettyJson,
   writeNew,
 } from "./io";
+import { emptyLogMarkdown } from "./logs";
 import {
   ADAPTERS_PATH,
   CRITIC_PROMPT_PATH,
@@ -17,6 +18,7 @@ import {
   FAILURES_PATH,
   GRAND_JURY_VERDICTS_DIR,
   GOAL_PATH,
+  HUMAN_LOG_PATH,
   PLAN_PATH,
   POLICY_PATH,
   PROGRESS_PATH,
@@ -31,7 +33,6 @@ import {
   defaultCriticPrompt,
   defaultPolicy,
   defaultWorkerPrompt,
-  emptyLogHtml,
 } from "./templates";
 
 export type OrchestratorInput = {
@@ -60,16 +61,17 @@ export function orchestrate(root: string, input: OrchestratorInput): void {
   const normalized = normalizeInput(input);
   const tasks = taskLedgerFromInput(normalized.task);
 
-  writeNew(join(root, GOAL_PATH), orchestratedGoalHtml(normalized, rawContext), input.force);
+  writeNew(join(root, GOAL_PATH), orchestratedGoalMarkdown(normalized, rawContext), input.force);
   writeNew(join(root, POLICY_PATH), prettyJson(defaultPolicy()), input.force);
   writeNew(join(root, ADAPTERS_PATH), prettyJson(defaultAdapters()), input.force);
   writeNew(join(root, TASKS_PATH), prettyJson(tasks), input.force);
-  writeNew(join(root, PLAN_PATH), orchestratedPlanHtml(normalized, rawContext, tasks), input.force);
+  writeNew(join(root, PLAN_PATH), orchestratedPlanMarkdown(normalized, rawContext, tasks), input.force);
   writeNew(join(root, WORKER_PROMPT_PATH), defaultWorkerPrompt(), input.force);
   writeNew(join(root, CRITIC_PROMPT_PATH), defaultCriticPrompt(), input.force);
-  writeNew(join(root, PROGRESS_PATH), emptyLogHtml("Progress"), input.force);
-  writeNew(join(root, FAILURES_PATH), emptyLogHtml("Failures"), input.force);
-  writeNew(join(root, DECISIONS_PATH), emptyLogHtml("Decisions"), input.force);
+  writeNew(join(root, HUMAN_LOG_PATH), "", input.force);
+  writeNew(join(root, PROGRESS_PATH), emptyLogMarkdown("Progress"), input.force);
+  writeNew(join(root, FAILURES_PATH), emptyLogMarkdown("Failures"), input.force);
+  writeNew(join(root, DECISIONS_PATH), emptyLogMarkdown("Decisions"), input.force);
   writeNew(join(root, EVENTS_PATH), "", input.force);
   const goalSha256 = acceptCurrentGoalHash(root);
 
@@ -88,7 +90,7 @@ export function orchestrate(root: string, input: OrchestratorInput): void {
 
   console.log(`orchestrated ${tasks.tasks.length} task(s)`);
   console.log(`raw context files: ${rawContext.length}`);
-  console.log(`accepted GOAL.html hash: ${goalSha256}`);
+  console.log(`accepted ${GOAL_PATH} hash: ${goalSha256}`);
 }
 
 function normalizeInput(input: OrchestratorInput): Required<Omit<OrchestratorInput, "force">> {
@@ -163,103 +165,77 @@ function previewFile(path: string): string {
     .trim();
 }
 
-function orchestratedGoalHtml(
+function orchestratedGoalMarkdown(
   input: Required<Omit<OrchestratorInput, "force">>,
   rawContext: RawContextFile[],
 ): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop Goal</title>
-</head>
-<body>
-  <h1>Objective</h1>
-  <p>${escapeHtml(input.objective)}</p>
-  <h1>Scope</h1>
-  ${htmlList(input.scope)}
-  <h1>Success Criteria</h1>
-  ${htmlList(input.success)}
-  <h1>Non-goals</h1>
-  ${htmlList(input.nonGoal)}
-  <h1>Human-required Gates</h1>
-  ${htmlList(input.gate)}
-  <h1>Additional Context</h1>
-  <p>Read <code>${RAW_DIR}/</code> before planning, implementing, or judging work.</p>
-  ${rawContextList(rawContext)}
-</body>
-</html>
+  return `# Objective
+
+${input.objective}
+
+# Scope
+
+${markdownList(input.scope)}
+
+# Success Criteria
+
+${markdownList(input.success)}
+
+# Non-goals
+
+${markdownList(input.nonGoal)}
+
+# Human-required Gates
+
+${markdownList(input.gate)}
+
+# Additional Context
+
+Read \`${RAW_DIR}/\` before planning, implementing, or judging work.
+
+${rawContextList(rawContext)}
 `;
 }
 
-function orchestratedPlanHtml(
+function orchestratedPlanMarkdown(
   input: Required<Omit<OrchestratorInput, "force">>,
   rawContext: RawContextFile[],
   tasks: TaskLedger,
 ): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Yoloop Plan</title>
-</head>
-<body>
-  <h1>Plan</h1>
-  <section id="context">
-    <h2>Context</h2>
-    <p>Objective: ${escapeHtml(input.objective)}</p>
-    ${rawContextList(rawContext)}
-  </section>
-  <section id="tasks">
-    <h2>Task Sequence</h2>
-    <ol>
-      ${tasks.tasks
-        .map(
-          (task) =>
-            `<li><strong>${escapeHtml(task.id)}</strong>: ${escapeHtml(task.title)}. Dependencies: ${
-              task.dependsOn.length === 0 ? "none" : task.dependsOn.map(escapeHtml).join(", ")
-            }.</li>`,
-        )
-        .join("\n      ")}
-    </ol>
-  </section>
-  <section id="verification">
-    <h2>Verification</h2>
-    <ul>
-      <li>Each task must reach <code>critic_review</code> before completion.</li>
-      <li>Each completed task requires an approved critic verdict.</li>
-      <li>The final jury must inspect <code>${GOAL_PATH}</code>, <code>${TASKS_PATH}</code>, <code>${PROGRESS_PATH}</code>, <code>${FAILURES_PATH}</code>, <code>${DECISIONS_PATH}</code>, and all verdicts.</li>
-    </ul>
-  </section>
-</body>
-</html>
+  return `# Plan
+
+## Context
+
+Objective: ${input.objective}
+
+${rawContextList(rawContext)}
+
+## Task Sequence
+
+${tasks.tasks
+  .map((task, index) => {
+    const dependencies = task.dependsOn.length === 0 ? "none" : task.dependsOn.join(", ");
+    return `${index + 1}. **${task.id}**: ${task.title}. Dependencies: ${dependencies}.`;
+  })
+  .join("\n")}
+
+## Verification
+
+- Each task must reach \`critic_review\` before completion.
+- Each completed task requires an approved critic verdict.
+- The final jury must inspect \`${GOAL_PATH}\`, \`${TASKS_PATH}\`, \`${PROGRESS_PATH}\`, \`${FAILURES_PATH}\`, \`${DECISIONS_PATH}\`, and all verdicts.
 `;
 }
 
 function rawContextList(rawContext: RawContextFile[]): string {
   if (rawContext.length === 0) {
-    return `<p>No files were found in <code>${RAW_DIR}/</code> when the orchestrator ran.</p>`;
+    return `No files were found in \`${RAW_DIR}/\` when the orchestrator ran.`;
   }
-  return `<ul>
-    ${rawContext
-      .map(
-        (file) =>
-          `<li><code>${escapeHtml(file.path)}</code> (${file.bytes} bytes): ${escapeHtml(file.preview || "no text preview")}</li>`,
-      )
-      .join("\n    ")}
-  </ul>`;
+  return rawContext
+    .map((file) => `- \`${file.path}\` (${file.bytes} bytes): ${file.preview || "no text preview"}`)
+    .join("\n");
 }
 
-function htmlList(items: string[]): string {
-  return `<ul>
-    ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("\n    ")}
-  </ul>`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function markdownList(items: string[]): string {
+  return items.map((item) => `- ${item}`).join("\n");
 }

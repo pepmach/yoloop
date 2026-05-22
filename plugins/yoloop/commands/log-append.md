@@ -6,4 +6,4 @@ Use Bash to run:
 yoloop log append $ARGUMENTS
 ```
 
-Require `--kind progress`, `--kind failure`, or `--kind decision`, plus a concise `--summary`. Prefer `--task-id`, `--actor`, and `--body` when available. Do not write directly to `PROGRESS.html`, `FAILURES.html`, or `DECISIONS.html`.
+Require `--kind progress`, `--kind failure`, or `--kind decision`, plus a concise `--summary`. Prefer `--task-id`, `--actor`, and `--body` when available. Do not write directly to `PROGRESS.md`, `FAILURES.md`, `DECISIONS.md`, or `.yoloop/human-log.jsonl`.

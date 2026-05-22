@@ -83,7 +83,7 @@ export function goalIntegrity(root: string): string {
   const expected = readFileSync(join(root, GOAL_HASH_PATH), "utf8").trim();
   const actual = goalHash(root);
   if (expected !== actual) {
-    fail(`GOAL.html hash mismatch: expected ${expected}, actual ${actual}`);
+    fail(`${GOAL_PATH} hash mismatch: expected ${expected}, actual ${actual}`);
   }
   return "hash matches";
 }

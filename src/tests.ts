@@ -30,6 +30,15 @@ test("init creates raw and doctor passes", () => {
   const root = tempRoot("init");
   try {
     init(root, "Test goal", true);
+    assert.ok(existsSync(join(root, "GOAL.md")));
+    assert.ok(existsSync(join(root, "PLAN.md")));
+    assert.ok(existsSync(join(root, "WORKER_PROMPT.md")));
+    assert.ok(existsSync(join(root, "CRITIC_PROMPT.md")));
+    assert.ok(existsSync(join(root, "PROGRESS.md")));
+    assert.ok(existsSync(join(root, "FAILURES.md")));
+    assert.ok(existsSync(join(root, "DECISIONS.md")));
+    assert.ok(existsSync(join(root, ".yoloop", "human-log.jsonl")));
+    assert.equal(existsSync(join(root, "GOAL.html")), false);
     doctor(root);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -62,7 +71,7 @@ test("completed task requires approved critic verdict", () => {
 });
 
 test("adapter template renders raw placeholder", () => {
-  assert.equal(renderTemplate("read {{raw}} and {{goal}}"), "read raw and GOAL.html");
+  assert.equal(renderTemplate("read {{raw}} and {{goal}}"), "read raw and GOAL.md");
 });
 
 test("pretooluse blocks immutable goal edits", () => {
@@ -71,7 +80,7 @@ test("pretooluse blocks immutable goal edits", () => {
     init(root, "Test goal", true);
     const decision = pretooluse(
       root,
-      JSON.stringify({ tool_name: "Edit", tool_input: { file_path: "GOAL.html" } }),
+      JSON.stringify({ tool_name: "Edit", tool_input: { file_path: "GOAL.md" } }),
     );
     assert.equal(decision.decision, "block");
   } finally {
@@ -83,7 +92,7 @@ test("pretooluse blocks changed goal for mutating tools", () => {
   const root = tempRoot("goal-hash");
   try {
     init(root, "Test goal", true);
-    writeFileSync(join(root, "GOAL.html"), "changed", "utf8");
+    writeFileSync(join(root, "GOAL.md"), "changed", "utf8");
     const decision = pretooluse(root, JSON.stringify({ tool_name: "Write", tool_input: { file_path: "x.txt" } }));
     assert.equal(decision.decision, "block");
   } finally {
@@ -97,13 +106,13 @@ test("pretooluse blocks direct edits to append-only human logs", () => {
     init(root, "Test goal", true);
     const editDecision = pretooluse(
       root,
-      JSON.stringify({ tool_name: "Edit", tool_input: { file_path: "PROGRESS.html" } }),
+      JSON.stringify({ tool_name: "Edit", tool_input: { file_path: "PROGRESS.md" } }),
     );
     assert.equal(editDecision.decision, "block");
 
     const bashDecision = pretooluse(
       root,
-      JSON.stringify({ tool_name: "Bash", tool_input: { command: "Add-Content PROGRESS.html 'raw log'" } }),
+      JSON.stringify({ tool_name: "Bash", tool_input: { command: "Add-Content PROGRESS.md 'raw log'" } }),
     );
     assert.equal(bashDecision.decision, "block");
   } finally {
@@ -111,7 +120,7 @@ test("pretooluse blocks direct edits to append-only human logs", () => {
   }
 });
 
-test("log append writes curated HTML entries", () => {
+test("log append writes JSONL entries and renders Markdown logs", () => {
   const root = tempRoot("log-append");
   try {
     init(root, "Test goal", true);
@@ -130,10 +139,18 @@ test("log append writes curated HTML entries", () => {
       "Added validation before state transition.",
     ], root);
 
-    const progress = readFileSync(join(root, "PROGRESS.html"), "utf8");
-    assert.ok(progress.includes('<article class="yoloop-log-entry" data-kind="progress"'));
-    assert.ok(progress.includes("<h2>Implemented parser guard</h2>"));
-    assert.ok(progress.includes("<code>T-001</code>"));
+    const logJsonl = readFileSync(join(root, ".yoloop", "human-log.jsonl"), "utf8").trim().split("\n");
+    assert.equal(logJsonl.length, 1);
+    const entry = JSON.parse(logJsonl[0]);
+    assert.equal(entry.kind, "progress");
+    assert.equal(entry.taskId, "T-001");
+    assert.equal(entry.actor, "worker-001");
+    assert.equal(entry.summary, "Implemented parser guard");
+    assert.equal(entry.body, "Added validation before state transition.");
+
+    const progress = readFileSync(join(root, "PROGRESS.md"), "utf8");
+    assert.ok(progress.includes("## Implemented parser guard"));
+    assert.ok(progress.includes("Task: `T-001`"));
     assert.ok(progress.includes("worker-001"));
     assert.ok(progress.includes("Added validation before state transition."));
   } finally {
@@ -156,8 +173,8 @@ test("orchestrator writes goal plan tasks and raw context", () => {
       force: true,
     });
 
-    const goal = readFileSync(join(root, "GOAL.html"), "utf8");
-    const plan = readFileSync(join(root, "PLAN.html"), "utf8");
+    const goal = readFileSync(join(root, "GOAL.md"), "utf8");
+    const plan = readFileSync(join(root, "PLAN.md"), "utf8");
     const tasks = readTasks(root);
     assert.ok(goal.includes("Build the orchestrator MVP"));
     assert.ok(goal.includes("raw/context.txt"));

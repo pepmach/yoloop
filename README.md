@@ -2,9 +2,7 @@
 
 Yoloop is a local-first harness for long-running coding agents. It is designed for the "hands-off overnight feature" workflow: a human defines an immutable goal, the harness decomposes work into tasks, workers implement one task at a time, critics verify the work, and a final jury checks the whole run before completion.
 
-This repo is currently a TypeScript-first MVP control plane. It creates durable state, validates machine artifacts with Zod, enforces policy through hooks, and gives agent sessions a shared artifact protocol.
-
-The current implementation still emits HTML runtime artifacts. The product direction has changed to Markdown-primary human artifacts backed by JSON/JSONL machine state, because Markdown is easier to preview, diff, and review inside Claude Code, Codex, terminals, editors, and GitHub. Treat the HTML artifacts as legacy v0 behavior that will be migrated before a serious public release.
+This repo is currently a TypeScript-first MVP control plane. It creates durable Markdown artifacts, validates machine artifacts with Zod, enforces policy through hooks, and gives agent sessions a shared artifact protocol.
 
 ## Development
 
@@ -35,20 +33,21 @@ yoloop run
 yoloop adapter run --adapter claude-code --role worker --dry-run
 ```
 
-The current generated harness files are:
+The generated harness files are:
 
-- `GOAL.html`: immutable human-owned goal and success criteria.
+- `GOAL.md`: immutable human-owned goal and success criteria.
 - `LOOP_POLICY.json`: budgets, protected paths, and human approval gates.
 - `ADAPTERS.json`: editable host adapter command templates.
-- `PLAN.html`: master implementation plan.
+- `PLAN.md`: master implementation plan.
 - `TASKS.json`: structured task ledger.
-- `WORKER_PROMPT.html`: worker session bootstrap.
-- `CRITIC_PROMPT.html`: critic session bootstrap.
-- `PROGRESS.html`: append-only human-readable worker progress.
-- `FAILURES.html`: append-only human-readable failure memory.
-- `DECISIONS.html`: append-only human-readable decision log.
+- `WORKER_PROMPT.md`: worker session bootstrap.
+- `CRITIC_PROMPT.md`: critic session bootstrap.
+- `PROGRESS.md`: rendered worker progress.
+- `FAILURES.md`: rendered failure memory.
+- `DECISIONS.md`: rendered decision log.
 - `raw/`: user-supplied product notes, repo context, references, and domain knowledge for the orchestrator, worker, critic, and grand jury.
 - `.yoloop/events.jsonl`: append-only machine event log.
+- `.yoloop/human-log.jsonl`: canonical append-only human log state rendered into progress, failure, and decision Markdown files.
 - `.yoloop/critic-verdicts/`: structured critic verdict output.
 - `.yoloop/grand-jury-verdicts/`: structured final run verdict output.
 
@@ -66,9 +65,9 @@ Yoloop uses different file formats for different jobs:
 - JSON/JSONL for enforcement and machine state: tasks, policy, adapters, verdicts, hashes, events, raw context manifests, decision queues, and canonical human log entries.
 - HTML only for optional rich generated reports or dashboards later.
 
-The intended runtime artifact set is `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `DECOMPOSITION_REVIEW.md`, `PROGRESS.md`, `FAILURES.md`, `DECISIONS.md`, and `REPORT.md`, backed by structured state such as `.yoloop/human-log.jsonl`, `.yoloop/context-manifest.json`, `.yoloop/decomposition-verdicts/`, and `.yoloop/decision-queue.json`.
+The current runtime artifact set is `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`, backed by `.yoloop/human-log.jsonl`. Future slices add `DECOMPOSITION_REVIEW.md`, `REPORT.md`, `.yoloop/context-manifest.json`, `.yoloop/decomposition-verdicts/`, and `.yoloop/decision-queue.json`.
 
-Workers append curated human log entries through `yoloop log append` instead of directly editing the HTML files:
+Workers append curated human log entries through `yoloop log append` instead of directly editing the rendered Markdown files:
 
 ```powershell
 yoloop log append --kind progress --task-id T-001 --actor worker-001 --summary "Started implementation" --body "Mapped the relevant modules and selected the task-local edit path."
@@ -76,7 +75,7 @@ yoloop log append --kind failure --task-id T-001 --actor worker-001 --summary "n
 yoloop log append --kind decision --task-id T-001 --actor worker-001 --summary "Kept JSON as source of truth" --body "Structured artifacts remain the enforced state; human logs are rendered review material."
 ```
 
-While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to the append-only human logs. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads. The next implementation slice should make `.yoloop/human-log.jsonl` canonical and render Markdown log views from it.
+While the loop is active, hooks block direct `Write`/`Edit`/`MultiEdit` changes to the append-only human logs and their canonical JSONL source. This keeps the files human-readable without turning them into raw stdout dumps or agent scratchpads.
 
 `raw/` is intentionally outside the generated prompt files. Drop long-form specs, notes, architectural background, screenshots exported as text, previous investigation notes, or other context there. The generated prompts tell agents to inspect it before planning or editing so the loop is not limited to the initial chat transcript.
 
@@ -131,11 +130,11 @@ Adapter templates live in `ADAPTERS.json` so Claude Code, Codex, and future host
 
 ## Goal Update Flow
 
-`GOAL.html` is immutable while the current loop is active. After the Markdown migration, this becomes `GOAL.md`. To change the current goal:
+`GOAL.md` is immutable while the current loop is active. To change the current goal:
 
 ```powershell
 yoloop pause
-# edit GOAL.html for the current implementation; edit GOAL.md after the Markdown migration
+# edit GOAL.md
 yoloop accept-goal
 yoloop resume
 ```

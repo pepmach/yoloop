@@ -16,6 +16,7 @@ import {
   writeJson,
   writeNew,
 } from "./io";
+import { emptyLogMarkdown } from "./logs";
 import {
   ADAPTERS_PATH,
   CRITIC_PROMPT_PATH,
@@ -26,6 +27,7 @@ import {
   GRAND_JURY_VERDICTS_DIR,
   GOAL_HASH_PATH,
   GOAL_PATH,
+  HUMAN_LOG_PATH,
   PLAN_PATH,
   POLICY_PATH,
   PROGRESS_PATH,
@@ -42,8 +44,7 @@ import {
   defaultPolicy,
   defaultTasks,
   defaultWorkerPrompt,
-  emptyLogHtml,
-  goalHtml,
+  goalMarkdown,
 } from "./templates";
 import { nextClaimableTask } from "./tasks";
 
@@ -54,16 +55,17 @@ export function init(root: string, goal: string | undefined, force: boolean): vo
   ensureDir(join(root, RAW_DIR));
 
   const objective = goal ?? "Describe the goal here before launching the loop.";
-  writeNew(join(root, GOAL_PATH), goalHtml(objective), force);
+  writeNew(join(root, GOAL_PATH), goalMarkdown(objective), force);
   writeNew(join(root, POLICY_PATH), prettyJson(defaultPolicy()), force);
   writeNew(join(root, TASKS_PATH), prettyJson(defaultTasks()), force);
   writeNew(join(root, ADAPTERS_PATH), prettyJson(defaultAdapters()), force);
   writeNew(join(root, PLAN_PATH), defaultPlan(), force);
   writeNew(join(root, WORKER_PROMPT_PATH), defaultWorkerPrompt(), force);
   writeNew(join(root, CRITIC_PROMPT_PATH), defaultCriticPrompt(), force);
-  writeNew(join(root, PROGRESS_PATH), emptyLogHtml("Progress"), force);
-  writeNew(join(root, FAILURES_PATH), emptyLogHtml("Failures"), force);
-  writeNew(join(root, DECISIONS_PATH), emptyLogHtml("Decisions"), force);
+  writeNew(join(root, HUMAN_LOG_PATH), "", force);
+  writeNew(join(root, PROGRESS_PATH), emptyLogMarkdown("Progress"), force);
+  writeNew(join(root, FAILURES_PATH), emptyLogMarkdown("Failures"), force);
+  writeNew(join(root, DECISIONS_PATH), emptyLogMarkdown("Decisions"), force);
   writeNew(join(root, EVENTS_PATH), "", force);
 
   if (force || !existsSync(join(root, GOAL_HASH_PATH))) {
@@ -81,7 +83,7 @@ export function init(root: string, goal: string | undefined, force: boolean): vo
 
   console.log(`initialized yoloop in ${root}`);
   console.log(`put supporting context in ${join(root, RAW_DIR)}`);
-  console.log("edit GOAL.html, PLAN.html, TASKS.json, and LOOP_POLICY.json before launching agents");
+  console.log("edit GOAL.md, PLAN.md, TASKS.json, and LOOP_POLICY.json before launching agents");
 }
 
 export function status(root: string): void {
@@ -143,6 +145,7 @@ export function doctor(root: string): void {
     PLAN_PATH,
     WORKER_PROMPT_PATH,
     CRITIC_PROMPT_PATH,
+    HUMAN_LOG_PATH,
     PROGRESS_PATH,
     FAILURES_PATH,
     DECISIONS_PATH,
@@ -195,10 +198,10 @@ export function acceptGoal(root: string, actor: string): void {
     kind: "goal.accepted",
     actor,
     taskId: null,
-    message: "Accepted current GOAL.html hash.",
+    message: `Accepted current ${GOAL_PATH} hash.`,
     data: { goalSha256: hash },
   });
-  console.log("accepted GOAL.html");
+  console.log(`accepted ${GOAL_PATH}`);
 }
 
 function rawContextFileCount(root: string): number {

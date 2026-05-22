@@ -1,6 +1,6 @@
 # Yoloop Roadmap
 
-This roadmap reflects the current product direction, not only the current implementation. The repo still has some HTML-first runtime behavior from the MVP; the next slices should pivot human artifacts to Markdown while keeping JSON/JSONL as the enforcement layer.
+This roadmap reflects the current product direction, not only the current implementation. Human-facing runtime artifacts are Markdown-primary, while JSON/JSONL remains the enforcement layer.
 
 ## v0.1: Control Plane
 
@@ -30,7 +30,7 @@ Status: implemented baseline.
 
 ## v0.3: Verdict Enforcement And Human Logs
 
-Status: implemented baseline; needs Markdown/JSONL migration.
+Status: implemented baseline.
 
 - Add `yoloop critic write-verdict`.
 - Add `yoloop grand-jury write-verdict`.
@@ -39,14 +39,16 @@ Status: implemented baseline; needs Markdown/JSONL migration.
 - Only allow `completed` transitions when the latest verdict is `approved`.
 - Emit final `<yoloop-done>` only when the latest grand jury verdict is `approved`.
 - Require deterministic check evidence for approval.
-- Migrate canonical human logs to `.yoloop/human-log.jsonl`.
+- Store canonical human logs in `.yoloop/human-log.jsonl`.
 - Render `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md` from structured log entries.
 
 ## v0.4: Markdown Artifact Pivot
 
+Status: implemented baseline.
+
 - Replace runtime human artifacts with `GOAL.md`, `PLAN.md`, `WORKER_PROMPT.md`, `CRITIC_PROMPT.md`, `PROGRESS.md`, `FAILURES.md`, and `DECISIONS.md`.
 - Add `DECOMPOSITION_REVIEW.md` and `REPORT.md`.
-- Update goal hash enforcement from `GOAL.html` to `GOAL.md`.
+- Update goal hash enforcement to `GOAL.md`.
 - Update hooks to protect Markdown artifacts and canonical JSONL state.
 - Update adapter placeholders and prompts.
 - Keep optional HTML reports out of the core path until preview friction is solved.

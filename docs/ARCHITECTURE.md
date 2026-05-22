@@ -38,7 +38,7 @@ The critic should write a structured verdict under `.yoloop/decomposition-verdic
 
 ## State Model
 
-The current implementation still emits HTML runtime artifacts. The intended product direction is Markdown-primary human artifacts backed by JSON/JSONL state.
+The current implementation emits Markdown-primary human artifacts backed by JSON/JSONL state.
 
 Human-readable Markdown files:
 

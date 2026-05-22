@@ -6,6 +6,19 @@ export type AgentRole = z.infer<typeof AgentRoleSchema>;
 export const HumanLogKindSchema = z.enum(["progress", "failure", "decision"]);
 export type HumanLogKind = z.infer<typeof HumanLogKindSchema>;
 
+export const HumanLogEntrySchema = z
+  .object({
+    schemaVersion: z.number().int(),
+    kind: HumanLogKindSchema,
+    taskId: z.string().nullable(),
+    actor: z.string(),
+    summary: z.string(),
+    body: z.string(),
+    createdAt: z.string(),
+  })
+  .strict();
+export type HumanLogEntry = z.infer<typeof HumanLogEntrySchema>;
+
 export const TaskStatusSchema = z.enum([
   "pending",
   "in_progress",

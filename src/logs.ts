@@ -1,9 +1,9 @@
-import { readFileSync } from "fs";
-import { join } from "path";
+import { appendFileSync, readFileSync } from "fs";
+import { dirname, join } from "path";
 import { fail } from "./errors";
-import { appendEvent, atomicWriteFile, goalIntegrity, nowIso, readTasks } from "./io";
-import { DECISIONS_PATH, FAILURES_PATH, PROGRESS_PATH } from "./paths";
-import { HumanLogKind, HumanLogKindSchema } from "./schemas";
+import { appendEvent, atomicWriteFile, ensureDir, goalIntegrity, nowIso, readTasks } from "./io";
+import { DECISIONS_PATH, FAILURES_PATH, HUMAN_LOG_PATH, PROGRESS_PATH } from "./paths";
+import { HumanLogEntry, HumanLogEntrySchema, HumanLogKind, HumanLogKindSchema } from "./schemas";
 
 export type AppendHumanLogInput = {
   kind: HumanLogKind;
@@ -13,46 +13,81 @@ export type AppendHumanLogInput = {
   body: string;
 };
 
-const INSERT_MARKER = "  </section>\n</body>";
-
 export function appendHumanLog(root: string, input: AppendHumanLogInput): void {
   goalIntegrity(root);
   const kind = HumanLogKindSchema.parse(input.kind);
-  const taskId = input.taskId?.trim();
+  const taskId = input.taskId?.trim() || null;
   if (taskId) {
     assertTaskExists(root, taskId);
   }
 
   const timestamp = nowIso();
-  const path = logPath(kind);
-  const fullPath = join(root, path);
-  const current = readLogFile(fullPath);
-  if (!current.includes(INSERT_MARKER)) {
-    fail(`${path} is not in the expected Yoloop log HTML format`);
-  }
-
-  const entry = renderLogEntry({
+  const entry = HumanLogEntrySchema.parse({
+    schemaVersion: 1,
     kind,
     taskId,
     actor: input.actor,
     summary: input.summary,
     body: input.body,
-    timestamp,
+    createdAt: timestamp,
   });
-  atomicWriteFile(fullPath, current.replace(INSERT_MARKER, `${entry}${INSERT_MARKER}`));
+
+  appendHumanLogEntry(root, entry);
+  renderHumanLogMarkdown(root, kind);
   appendEvent(root, {
     timestamp,
     kind: "human_log.appended",
     actor: input.actor,
-    taskId: taskId ?? null,
+    taskId,
     message: `Appended ${kind} log entry.`,
     data: { logKind: kind, summary: input.summary },
   });
-  console.log(`appended ${kind} log entry to ${path}`);
+  console.log(`appended ${kind} log entry to ${logPath(kind)}`);
 }
 
 export function parseHumanLogKind(value: string): HumanLogKind {
   return HumanLogKindSchema.parse(value);
+}
+
+export function emptyLogMarkdown(title: string): string {
+  return `# ${title}\n\nNo entries yet.\n`;
+}
+
+function appendHumanLogEntry(root: string, entry: HumanLogEntry): void {
+  const path = join(root, HUMAN_LOG_PATH);
+  ensureDir(dirname(path));
+  appendFileSync(path, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+function renderHumanLogMarkdown(root: string, kind: HumanLogKind): void {
+  const entries = readHumanLogEntries(root).filter((entry) => entry.kind === kind);
+  const title = logTitle(kind);
+  const body =
+    entries.length === 0
+      ? emptyLogMarkdown(title)
+      : `# ${title}\n\n${entries.map(renderMarkdownEntry).join("\n")}`;
+  atomicWriteFile(join(root, logPath(kind)), body);
+}
+
+function readHumanLogEntries(root: string): HumanLogEntry[] {
+  const path = join(root, HUMAN_LOG_PATH);
+  let raw = "";
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch (error) {
+    fail(`failed to read ${HUMAN_LOG_PATH}: ${formatError(error)}`);
+  }
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parsed = HumanLogEntrySchema.safeParse(JSON.parse(line) as unknown);
+      if (!parsed.success) {
+        fail(`parse ${HUMAN_LOG_PATH}: ${parsed.error.message}`);
+      }
+      return parsed.data;
+    });
 }
 
 function assertTaskExists(root: string, taskId: string): void {
@@ -73,51 +108,33 @@ function logPath(kind: HumanLogKind): string {
   }
 }
 
-function readLogFile(path: string): string {
-  try {
-    return readFileSync(path, "utf8");
-  } catch (error) {
-    fail(`failed to read ${path}: ${formatError(error)}`);
+function logTitle(kind: HumanLogKind): string {
+  switch (kind) {
+    case "progress":
+      return "Progress";
+    case "failure":
+      return "Failures";
+    case "decision":
+      return "Decisions";
   }
 }
 
-function renderLogEntry(input: {
-  kind: HumanLogKind;
-  taskId: string | undefined;
-  actor: string;
-  summary: string;
-  body: string;
-  timestamp: string;
-}): string {
-  const task = input.taskId ? `<dt>Task</dt><dd><code>${escapeHtml(input.taskId)}</code></dd>\n      ` : "";
-  const body = input.body.trim()
-    ? `\n    <section class="entry-body">\n      ${paragraphs(input.body)}\n    </section>`
-    : "";
-  return `    <article class="yoloop-log-entry" data-kind="${input.kind}" data-created-at="${escapeHtml(input.timestamp)}">
-      <h2>${escapeHtml(input.summary)}</h2>
-      <dl>
-      ${task}<dt>Actor</dt><dd>${escapeHtml(input.actor)}</dd>
-      <dt>Created</dt><dd><time datetime="${escapeHtml(input.timestamp)}">${escapeHtml(input.timestamp)}</time></dd>
-      </dl>${body}
-    </article>
-`;
+function renderMarkdownEntry(entry: HumanLogEntry): string {
+  const task = entry.taskId ? `- Task: \`${escapeInlineCode(entry.taskId)}\`\n` : "";
+  const body = entry.body.trim() ? `\n${entry.body.trim()}\n` : "";
+  return `## ${singleLine(entry.summary)}
+
+${task}- Actor: ${singleLine(entry.actor)}
+- Created: ${entry.createdAt}
+${body}`;
 }
 
-function paragraphs(value: string): string {
-  return value
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph.length > 0)
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
-    .join("\n      ");
+function singleLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function escapeInlineCode(value: string): string {
+  return value.replace(/`/g, "\\`");
 }
 
 function formatError(error: unknown): string {

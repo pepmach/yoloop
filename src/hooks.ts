@@ -1,6 +1,6 @@
 import { relative, resolve } from "path";
 import { goalIntegrity, readPolicy } from "./io";
-import { DECISIONS_PATH, FAILURES_PATH, PROGRESS_PATH } from "./paths";
+import { DECISIONS_PATH, FAILURES_PATH, GOAL_PATH, HUMAN_LOG_PATH, PROGRESS_PATH } from "./paths";
 import { HookInputSchema } from "./schemas";
 
 export type HookDecision =
@@ -26,7 +26,7 @@ export function pretooluse(root: string, rawInput: string): HookDecision {
     try {
       goalIntegrity(root);
     } catch (error) {
-      return { decision: "block", reason: `GOAL.html changed while loop is active: ${formatError(error)}` };
+      return { decision: "block", reason: `${GOAL_PATH} changed while loop is active: ${formatError(error)}` };
     }
   }
 
@@ -110,7 +110,7 @@ function looksLikeShellWrite(command: string): boolean {
 }
 
 function appendOnlyLogPaths(): string[] {
-  return [PROGRESS_PATH, FAILURES_PATH, DECISIONS_PATH].map((path) => path.replace(/\\/g, "/"));
+  return [HUMAN_LOG_PATH, PROGRESS_PATH, FAILURES_PATH, DECISIONS_PATH].map((path) => path.replace(/\\/g, "/"));
 }
 
 function pathMatches(path: string, pattern: string): boolean {
