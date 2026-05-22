@@ -27,7 +27,10 @@ export function run(args: string[], root: string): void {
       return;
     case "doctor": {
       const options = parseOptions([subcommand, ...rest].filter(Boolean));
-      doctor(root, { refreshContext: options.flag("refresh-context") });
+      doctor(root, {
+        refreshContext: options.flag("refresh-context"),
+        verifyChecks: options.flag("verify-checks"),
+      });
       return;
     }
     case "pause": {

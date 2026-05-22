@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
-import { discoverCheckCommands } from "./checks";
+import { discoverCheckCommands, verifyCheckCommands } from "./checks";
 import { fail } from "./errors";
 import { readContextManifest, refreshContextManifest } from "./context";
 import { readLatestGrandJuryVerdict } from "./grandJury";
@@ -54,6 +54,7 @@ import { nextClaimableTask } from "./tasks";
 export type DoctorOptions = {
   quiet?: boolean;
   refreshContext?: boolean;
+  verifyChecks?: boolean;
 };
 
 export function init(root: string, goal: string | undefined, force: boolean): void {
@@ -185,12 +186,16 @@ export function doctor(root: string, options: DoctorOptions = {}): void {
   readContextManifest(root);
   goalIntegrity(root);
   const discoveredChecks = discoverCheckCommands(root);
+  const checksToVerify = policy.checks.length > 0 ? policy.checks : discoveredChecks;
 
   if (!options.quiet) {
     console.log("doctor: ok");
     console.log(`raw context files: ${rawContextFileCount(root)}`);
     console.log(`configured checks: ${policy.checks.length}`);
     console.log(`discovered checks: ${discoveredChecks.length}`);
+  }
+  if (options.verifyChecks) {
+    verifyCheckCommands(root, checksToVerify, policy.maxWallClockMinutes * 60 * 1000);
   }
 }
 

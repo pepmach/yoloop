@@ -133,6 +133,92 @@ test("doctor rejects configured checks without command text", () => {
   }
 });
 
+test("doctor verify-checks runs configured checks", () => {
+  const root = tempRoot("verify-configured-checks");
+  try {
+    init(root, "Test goal", true);
+    writeFileSync(
+      join(root, "verify-configured.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'configured-ran.txt'), 'ok')",
+      "utf8",
+    );
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { test: "node discovered-should-not-run.cjs" } }, null, 2),
+      "utf8",
+    );
+    writeFileSync(
+      join(root, "discovered-should-not-run.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'discovered-ran.txt'), 'bad')",
+      "utf8",
+    );
+    const policyPath = join(root, "LOOP_POLICY.json");
+    const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+    policy.checks = [
+      {
+        name: "configured",
+        command: `${shellQuote(process.execPath)} ${shellQuote(join(root, "verify-configured.cjs"))}`,
+        source: "test",
+      },
+    ];
+    writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+
+    runCli(["doctor", "--verify-checks"], root);
+
+    assert.equal(existsSync(join(root, "configured-ran.txt")), true);
+    assert.equal(existsSync(join(root, "discovered-ran.txt")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("doctor verify-checks runs discovered checks when none are configured", () => {
+  const root = tempRoot("verify-discovered-checks");
+  try {
+    init(root, "Test goal", true);
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { test: "node discovered.cjs" } }, null, 2),
+      "utf8",
+    );
+    writeFileSync(
+      join(root, "discovered.cjs"),
+      "require('fs').writeFileSync(require('path').join(__dirname, 'discovered-ran.txt'), 'ok')",
+      "utf8",
+    );
+
+    doctor(root);
+    assert.equal(existsSync(join(root, "discovered-ran.txt")), false);
+
+    runCli(["doctor", "--verify-checks"], root);
+
+    assert.equal(existsSync(join(root, "discovered-ran.txt")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("doctor verify-checks fails when a check exits nonzero", () => {
+  const root = tempRoot("verify-failing-check");
+  try {
+    init(root, "Test goal", true);
+    const policyPath = join(root, "LOOP_POLICY.json");
+    const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+    policy.checks = [
+      {
+        name: "failing",
+        command: `${shellQuote(process.execPath)} -e "process.exit(7)"`,
+        source: "test",
+      },
+    ];
+    writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
+
+    assert.throws(() => runCli(["doctor", "--verify-checks"], root), /check failing exited with status 7/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("completed task requires approved critic verdict", () => {
   const root = tempRoot("verdict");
   try {
@@ -568,4 +654,8 @@ function writeMockAdapter(root: string): void {
     )}\n`,
     "utf8",
   );
+}
+
+function shellQuote(value: string): string {
+  return `"${value.replace(/"/g, '\\"')}"`;
 }

@@ -87,9 +87,13 @@ The TypeScript source is strict and Zod-first. Runtime schemas in `src/schemas.t
 
 `yoloop run` performs a cheap preflight before launching agents. This preflight validates required artifacts, parses JSON state, verifies the `GOAL.md` hash, refreshes `.yoloop/context-manifest.json`, discovers likely check commands by reading repo files, and validates configured check command strings.
 
-Normal preflight does not run real checks such as `npm test`, `npm run build`, lint, or typecheck. Those belong to critic execution or a future explicit command such as `yoloop checks run`.
+Normal preflight does not run real checks such as `npm test`, `npm run build`, lint, or typecheck. Those belong to critic execution or an explicit verification pass:
 
-`yoloop doctor` reports configured and discovered check counts. Use `yoloop doctor --refresh-context` when you want doctor to refresh the raw context manifest too.
+```powershell
+yoloop doctor --verify-checks
+```
+
+`yoloop doctor --verify-checks` runs configured `LOOP_POLICY.json` checks when present; otherwise it runs discovered checks. Plain `yoloop doctor` reports configured and discovered check counts without executing them. Use `yoloop doctor --refresh-context` when you want doctor to refresh the raw context manifest too.
 
 `yoloop orchestrate` is the deterministic Orchestrator MVP. It reads `raw/`, accepts explicit objective/scope/success/non-goal/gate/task inputs, and writes the durable harness artifacts without launching workers.
 

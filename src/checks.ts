@@ -1,6 +1,8 @@
+import { spawnSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { CheckCommand, CheckCommandSchema } from "./schemas";
+import { fail } from "./errors";
 
 const PACKAGE_SCRIPT_CHECKS = ["build", "lint", "test", "typecheck", "check", "e2e", "integration"];
 
@@ -11,6 +13,35 @@ export function discoverCheckCommands(root: string): CheckCommand[] {
     ...discoverPythonChecks(root),
     ...discoverGoChecks(root),
   ]);
+}
+
+export function verifyCheckCommands(root: string, checks: CheckCommand[], timeoutMs: number): void {
+  if (checks.length === 0) {
+    console.log("verify checks: no configured or discovered checks");
+    return;
+  }
+
+  for (const check of checks) {
+    console.log(`verify check: ${check.name}`);
+    console.log(`command: ${check.command}`);
+    const output = spawnSync(check.command, {
+      cwd: root,
+      shell: true,
+      stdio: "inherit",
+      timeout: timeoutMs,
+    });
+    if (output.error) {
+      fail(`check ${check.name} failed: ${output.error.message}`);
+    }
+    if (output.signal) {
+      fail(`check ${check.name} terminated by signal ${output.signal}`);
+    }
+    if (output.status !== 0) {
+      fail(`check ${check.name} exited with status ${output.status}`);
+    }
+    console.log(`check ${check.name}: passed`);
+  }
+  console.log(`verify checks: ok (${checks.length} check(s))`);
 }
 
 function discoverPackageJsonChecks(root: string): CheckCommand[] {

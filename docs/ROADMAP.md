@@ -66,7 +66,7 @@ Status: implemented baseline.
 
 ## v0.6: Wizard, Doctor, And Context Manifest
 
-Status: context manifest and cheap check discovery baseline implemented; wizard and explicit check execution remain.
+Status: context manifest, cheap check discovery, and `doctor --verify-checks` baseline implemented; wizard remains.
 
 - Add guided `yoloop orchestrate --wizard` or equivalent setup command.
 - Ask for objective, scope, success criteria, non-goals, human gates, milestone strategy, and build/test/check instructions.
@@ -75,6 +75,7 @@ Status: context manifest and cheap check discovery baseline implemented; wizard 
 - Validate configured check command strings before execution.
 - Detect package manager, build, lint, typecheck, test, and integration commands by reading repo files when user instructions are absent.
 - Do not run build/test/lint/typecheck during normal preflight.
+- Run configured or discovered checks only through explicit `yoloop doctor --verify-checks`.
 - Create `.yoloop/context-manifest.json` from `raw/` with paths, sizes, hashes, and file types.
 
 ## v0.7: Decomposition Critic
